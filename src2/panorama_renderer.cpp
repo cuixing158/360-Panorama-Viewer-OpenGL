@@ -13,8 +13,11 @@ const int WINDOW_HEIGHT = 600;
 GLuint textureID;
 cv::Mat panoramaImage;
 
-float pitch = 0.0f, yaw = 0.0f;              // 摄像机旋转角度
 glm::vec3 cameraPosition(0.0f, 0.0f, 0.0f);  // 初始视角位置
+float pitch = 0.0f, yaw = 0.0f;              // 摄像机旋转角度
+float fov = 90.0f;                           // 初始视野角度
+bool isDragging = false;                     // 是否正在拖动鼠标
+double lastX = 0.0, lastY = 0.0;             // 上次鼠标的位置
 
 enum ViewMode { CENTER_VIEW,
                 TINY_PLANET,
@@ -48,6 +51,67 @@ const char* fragmentShaderSource = R"(
         FragColor = texture(texture1, TexCoord);
     }
 )";
+
+// const char* vertexShaderSource =
+//     "#version 330 core\n"
+//     "layout(location = 0) in vec3 aPos;\n"
+//     "layout(location = 1) in vec2 aTexCoord;\n"
+//     "out vec2 TexCoord;\n"
+//     "uniform mat4 projection;\n"
+//     "uniform mat4 view;\n"
+//     "void main() {\n"
+//     "    TexCoord = aTexCoord;\n"
+//     "    gl_Position = projection * view * vec4(aPos, 1.0);\n"
+//     "}\n";
+
+// const char* fragmentShaderSource =
+//     "#version 330 core;\n"
+//     "in vec2 TexCoord;\n"
+//     "out vec4 FragColor;\n"
+//     "uniform sampler2D texture1;\n"
+//     "void main() {\n"
+//     "    FragColor = texture(texture1, TexCoord);\n"
+//     "}\n";
+
+// 鼠标按下和移动回调函数
+void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (isDragging) {
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos;  // Y轴是反向的
+        lastX = xpos;
+        lastY = ypos;
+
+        // 更新相机角度（偏航yaw和俯仰pitch）
+        float sensitivity = 0.1f;  // 鼠标灵敏度
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        yaw += xoffset;
+        pitch += yoffset;
+
+        // 限制俯仰角度在[-89, 89]范围内，避免摄像机翻转
+        // pitch = glm::clamp(pitch, -89.0f, 89.0f);
+    }
+}
+
+// 鼠标按下回调函数
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            isDragging = true;
+            glfwGetCursorPos(window, &lastX, &lastY);  // 记录鼠标按下时的位置
+        }
+        if (action == GLFW_RELEASE) {
+            isDragging = false;  // 释放鼠标时停止拖动
+        }
+    }
+}
+
+// 滚轮回调函数（用于调整 FOV）
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    fov -= (float)yoffset;                // 鼠标滚轮垂直移动
+    fov = glm::clamp(fov, 1.0f, 120.0f);  // 限制 FOV 的范围
+}
 
 // Function to compile a shader
 GLuint compileShader(GLenum shaderType, const char* shaderSource) {
@@ -244,17 +308,18 @@ void processInput(GLFWwindow* window) {
 // 设置视图矩阵
 void setViewMatrix() {
     glm::mat4 view;
-    glm::mat4 projection = glm::perspective(glm::radians(90.0f), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(fov), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
 
+    // 根据当前视角模式设置视图矩阵
     if (currentView == CENTER_VIEW) {
-        cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);  // 球中心
-        view = glm::rotate(glm::mat4(1.0f), glm::radians(pitch), glm::vec3(1, 0, 0));
-        view = glm::rotate(view, glm::radians(yaw), glm::vec3(0, 1, 0));
+        cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+        view = glm::lookAt(cameraPosition, glm::vec3(sin(glm::radians(yaw)) * cos(glm::radians(pitch)), sin(glm::radians(pitch)), cos(glm::radians(yaw)) * cos(glm::radians(pitch))),
+                           glm::vec3(0, 1, 0));
     } else if (currentView == TINY_PLANET) {
-        cameraPosition = glm::vec3(0.0f, -2.0f, 0.0f);  // 低于球中心
+        cameraPosition = glm::vec3(0.0f, -1.0f, 0.0f);  // 低于球中心
         view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 0, 1));
     } else if (currentView == CRYSTAL_BALL) {
-        cameraPosition = glm::vec3(0.0f, 0.0f, 5.0f);  // 球外部
+        cameraPosition = glm::vec3(0.0f, 0.0f, 2.0f);  // 球外部
         view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1, 0));
     }
 
@@ -293,12 +358,20 @@ void renderLoop(GLFWwindow* window, SphereData* sphereData) {
 
         processInput(window);
 
-        glm::mat4 projection = glm::perspective(glm::radians(90.0f), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, -2.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1, 0));
+        glm::mat4 projection = glm::perspective(glm::radians(fov), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
+
+        // 通过 yaw 和 pitch 设置相机的方向
+        glm::mat4 view = glm::lookAt(
+            cameraPosition,
+            glm::vec3(1.0f * sin(glm::radians(yaw)) * cos(glm::radians(pitch)),
+                      1.0f * sin(glm::radians(pitch)),
+                      1.0f * cos(glm::radians(yaw)) * cos(glm::radians(pitch))),
+            glm::vec3(0.0f, 1.0f, 0.0f));
+
         renderPanorama(sphereData, projection, view);
 
         setViewMatrix();  // 设置视角矩阵
-        renderSphere(2.0f, 50, 50);
+        // renderSphere(2.0f, 50, 50);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -325,7 +398,7 @@ int main() {
     glEnable(GL_TEXTURE_2D);
 
     // 初始化 SphereData
-    sphere = new SphereData(2.0f, 50, 50);
+    sphere = new SphereData(1.0f, 50, 50);
 
     initPanoramaRenderer(sphere);
 
@@ -340,6 +413,11 @@ int main() {
     glEnable(GL_DEPTH_TEST);
     // 设置深度测试函数
     glDepthFunc(GL_LESS);
+
+    // 设置回调函数
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     // 渲染循环
     renderLoop(window, sphere);
