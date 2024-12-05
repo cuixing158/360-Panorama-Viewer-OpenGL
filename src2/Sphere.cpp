@@ -17,13 +17,13 @@ SphereData::SphereData(float radius, unsigned int rings, unsigned int sectors) {
     int v = 0, t = 0, i = 0;
     for (unsigned int r = 0; r < rings; r++) {
         for (unsigned int s = 0; s < sectors; s++) {
-            float y = sin(-2 * PI * +PI * r * R);
+            float y = sin(-PI / 2.0f + PI * r * R);
             float x = cos(2 * PI * s * S) * sin(PI * r * R);
             float z = sin(2 * PI * s * S) * sin(PI * r * R);
 
-            //            float z = sin(-M_PI_2 + M_PI * r * R);
-            //            float y = cos(-M_PI_2 + M_PI * r * R)*sin(2 * M_PI * s * S) ;
-            //            float x = cos(-M_PI_2 + M_PI * r * R)*cos(2 * M_PI * s * S);
+            // float z = sin(-PI / 2.0f + PI * r * R);
+            // float y = cos(-PI / 2.0f + PI * r * R) * sin(2.0f * PI * s * S);
+            // float x = cos(-PI / 2.0f + PI * r * R) * cos(2.0f * PI * s * S);
 
             texCoords[t++] = s * S;
             texCoords[t++] = r * R;

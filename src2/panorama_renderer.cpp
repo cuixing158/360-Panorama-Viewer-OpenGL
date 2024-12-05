@@ -10,7 +10,6 @@
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
 
-GLuint textureID;
 cv::Mat panoramaImage;
 
 glm::vec3 cameraPosition(0.0f, 0.0f, 0.0f);  // 初始视角位置
@@ -131,7 +130,6 @@ GLuint compileShader(GLenum shaderType, const char* shaderSource) {
     return shader;
 }
 
-// Function to create a shader program
 // GLuint createProgram(const char* vertexShaderSource, const char* fragmentShaderSource) {
 //     GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
 //     GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
@@ -158,6 +156,8 @@ GLuint compileShader(GLenum shaderType, const char* shaderSource) {
 
 //     return program;
 // }
+
+// Function to create a shader program
 GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexSource, nullptr);
