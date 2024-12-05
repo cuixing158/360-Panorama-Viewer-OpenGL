@@ -7,16 +7,17 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "Sphere.h"
 
+#define USE_GL_BEGIN_END 1
+
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
 
 cv::Mat panoramaImage;
 
-glm::vec3 cameraPosition(0.0f, 0.0f, 0.0f);  // 初始视角位置
-float pitch = 0.0f, yaw = 0.0f;              // 摄像机旋转角度
-float fov = 90.0f;                           // 初始视野角度
-bool isDragging = false;                     // 是否正在拖动鼠标
-double lastX = 0.0, lastY = 0.0;             // 上次鼠标的位置
+float pitch = 0.0f, yaw = 0.0f, prevPitch = 0.0f;  // 摄像机旋转角度
+float fov = 90.0f;                                 // 初始视野角度
+bool isDragging = false;                           // 是否正在拖动鼠标
+double lastX = 0.0, lastY = 0.0;                   // 上次鼠标的位置
 
 enum ViewMode { CENTER_VIEW,
                 TINY_PLANET,
@@ -51,27 +52,6 @@ const char* fragmentShaderSource = R"(
     }
 )";
 
-// const char* vertexShaderSource =
-//     "#version 330 core\n"
-//     "layout(location = 0) in vec3 aPos;\n"
-//     "layout(location = 1) in vec2 aTexCoord;\n"
-//     "out vec2 TexCoord;\n"
-//     "uniform mat4 projection;\n"
-//     "uniform mat4 view;\n"
-//     "void main() {\n"
-//     "    TexCoord = aTexCoord;\n"
-//     "    gl_Position = projection * view * vec4(aPos, 1.0);\n"
-//     "}\n";
-
-// const char* fragmentShaderSource =
-//     "#version 330 core;\n"
-//     "in vec2 TexCoord;\n"
-//     "out vec4 FragColor;\n"
-//     "uniform sampler2D texture1;\n"
-//     "void main() {\n"
-//     "    FragColor = texture(texture1, TexCoord);\n"
-//     "}\n";
-
 // 鼠标按下和移动回调函数
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     if (isDragging) {
@@ -81,7 +61,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
         lastY = ypos;
 
         // 更新相机角度（偏航yaw和俯仰pitch）
-        float sensitivity = 0.1f;  // 鼠标灵敏度
+        float sensitivity = 0.2f;  // 鼠标灵敏度
         xoffset *= sensitivity;
         yoffset *= sensitivity;
 
@@ -108,54 +88,9 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 // 滚轮回调函数（用于调整 FOV）
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    fov -= (float)yoffset;                // 鼠标滚轮垂直移动
-    fov = glm::clamp(fov, 1.0f, 120.0f);  // 限制 FOV 的范围
+    fov -= 4.0f * (float)yoffset;         // 鼠标滚轮垂直移动
+    fov = glm::clamp(fov, 1.0f, 160.0f);  // 限制 FOV 的范围
 }
-
-// Function to compile a shader
-GLuint compileShader(GLenum shaderType, const char* shaderSource) {
-    GLuint shader = glCreateShader(shaderType);
-    glShaderSource(shader, 1, &shaderSource, nullptr);
-    glCompileShader(shader);
-
-    GLint success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        GLchar infoLog[512];
-        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        std::cerr << "Shader compilation failed: " << infoLog << std::endl;
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
-
-// GLuint createProgram(const char* vertexShaderSource, const char* fragmentShaderSource) {
-//     GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
-//     GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-
-//     GLuint program = glCreateProgram();
-//     glAttachShader(program, vertexShader);
-//     glAttachShader(program, fragmentShader);
-//     glLinkProgram(program);
-
-//     GLint success;
-//     glGetProgramiv(program, GL_LINK_STATUS, &success);
-//     if (!success) {
-//         GLchar infoLog[512];
-//         glGetProgramInfoLog(program, 512, nullptr, infoLog);
-//         std::cerr << "Program linking failed: " << infoLog << std::endl;
-//         glDeleteShader(vertexShader);
-//         glDeleteShader(fragmentShader);
-//         glDeleteProgram(program);
-//         return 0;
-//     }
-
-//     glDeleteShader(vertexShader);
-//     glDeleteShader(fragmentShader);
-
-//     return program;
-// }
 
 // Function to create a shader program
 GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
@@ -253,6 +188,7 @@ GLuint loadTexture(const char* path) {
     std::cout << "Loaded image with size: " << image.cols << "x" << image.rows << std::endl;
 
     cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+    cv::flip(image, image, 0);
     GLuint textureID;
     glGenTextures(1, &textureID);
     glBindTexture(GL_TEXTURE_2D, textureID);
@@ -266,13 +202,13 @@ GLuint loadTexture(const char* path) {
     return textureID;
 }
 
-// 绘制球体
+// 绘制球体，该函数是传统的立即模式渲染函数glBegin/glEnd，现代OpenGL中不推荐使用
 void renderSphere(float radius, int slices, int stacks) {
     for (int i = 0; i < stacks; ++i) {
         float phi0 = glm::pi<float>() * (-0.5 + (double)(i) / stacks);
         float phi1 = glm::pi<float>() * (-0.5 + (double)(i + 1) / stacks);
 
-        glBegin(GL_TRIANGLE_STRIP);
+        glBegin(GL_TRIANGLE_STRIP);  // glBegin在OpenGL ES中不被支持，OpenGL ES 是 OpenGL 的一个子集，主要用于嵌入式系统
         for (int j = 0; j <= slices; ++j) {
             float theta = 2 * glm::pi<float>() * (double)(j) / slices;
 
@@ -297,30 +233,100 @@ void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) yaw -= 0.5f;
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) yaw += 0.5f;
 
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) currentView = CENTER_VIEW;
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) currentView = TINY_PLANET;
-    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) currentView = CRYSTAL_BALL;
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+        currentView = CENTER_VIEW;
+        pitch = 0.0f;
+        prevPitch = 0.0f;
+        yaw = 0.0f;
+    }
 
-    pitch = glm::clamp(pitch, -89.0f, 89.0f);
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+        currentView = TINY_PLANET;
+        pitch = 90.0f;
+        prevPitch = pitch;
+        yaw = 0.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+        currentView = CRYSTAL_BALL;
+        pitch = 0.0f;
+        prevPitch = pitch;
+        yaw = 0.0f;
+    }
+
+    // 只有透视图才限制俯仰角度
+    if (currentView == CENTER_VIEW) {
+        pitch = glm::clamp(pitch, -89.0f, 89.0f);
+    }
     yaw = glm::mod(yaw, 360.0f);
 }
 
+bool hasMultipleOf90With180IntervalExclusive(float previousPitch, float pitch) {
+    // Determine the minimum and maximum values
+    float minPitch = std::min(previousPitch, pitch);
+    float maxPitch = std::max(previousPitch, pitch);
+
+    // Calculate the first multiple of 90 greater than minPitch
+    float start = std::ceil(minPitch / 90.0f) * 90.0f;
+
+    // Ensure the starting multiple is greater than the minimum pitch
+    if (start <= minPitch) {
+        start += 180.0f;  // Get the next multiple
+    }
+
+    // Check for multiples of 90 within the exclusive range
+    for (float multiple = start; multiple < maxPitch; multiple += 180.0f) {
+        if (multiple > minPitch && multiple < maxPitch) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool hasDivisibleNode(float previousPitch, float pitch) {
+    // 确保 previousPitch 小于 pitch
+    if (previousPitch > pitch) std::swap(previousPitch, pitch);
+
+    // 不包括边界
+    float lowerBound = previousPitch + std::numeric_limits<float>::epsilon();
+    float upperBound = pitch - std::numeric_limits<float>::epsilon();
+
+    // 找到第一个大于 lowerBound 的 "90 + 180*k" 的数
+    float start = 90.0f + std::ceil((lowerBound - 90.0f) / 180.0f) * 180.0f;
+
+    // 判断 start 是否在范围内
+    return start > lowerBound && start < upperBound;
+}
+
 // 设置视图矩阵
-void setViewMatrix() {
-    glm::mat4 view;
-    glm::mat4 projection = glm::perspective(glm::radians(fov), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
+void getViewMatrix(glm::mat4& projection, glm::mat4& view) {
+    static glm::vec3 upCamera = glm::vec3(0.0f, 1.0f, 0.0f);
+    // 设置投影矩阵
+    projection = glm::perspective(glm::radians(fov), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
 
     // 根据当前视角模式设置视图矩阵
+    glm::vec3 movingPosition(sin(glm::radians(yaw)) * cos(glm::radians(pitch)), sin(glm::radians(pitch)), cos(glm::radians(yaw)) * cos(glm::radians(pitch)));  // 移动视角位置
     if (currentView == CENTER_VIEW) {
-        cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-        view = glm::lookAt(cameraPosition, glm::vec3(sin(glm::radians(yaw)) * cos(glm::radians(pitch)), sin(glm::radians(pitch)), cos(glm::radians(yaw)) * cos(glm::radians(pitch))),
+        glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+        view = glm::lookAt(cameraPosition, movingPosition,
                            glm::vec3(0, 1, 0));
     } else if (currentView == TINY_PLANET) {
-        cameraPosition = glm::vec3(0.0f, -1.0f, 0.0f);  // 低于球中心
-        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 0, 1));
+        glm::vec3 cameraPosition = movingPosition;  // 在单位球表面
+
+        if (hasDivisibleNode(prevPitch, pitch)) {
+            upCamera[1] = upCamera[1] * -1.0f;
+        }
+
+        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
+        prevPitch = pitch;
     } else if (currentView == CRYSTAL_BALL) {
-        cameraPosition = glm::vec3(0.0f, 0.0f, 2.0f);  // 球外部
-        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0, 1, 0));
+        glm::vec3 cameraPosition = 1.5f * movingPosition;  // 球外部
+        if (hasDivisibleNode(prevPitch, pitch)) {
+            upCamera[1] = upCamera[1] * -1.0f;
+        }
+        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
+
+        prevPitch = pitch;
     }
 
     glMatrixMode(GL_PROJECTION);
@@ -358,20 +364,14 @@ void renderLoop(GLFWwindow* window, SphereData* sphereData) {
 
         processInput(window);
 
-        glm::mat4 projection = glm::perspective(glm::radians(fov), (float)WINDOW_WIDTH / WINDOW_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection, view;
+        getViewMatrix(projection, view);  // 获取投影和视角矩阵
 
-        // 通过 yaw 和 pitch 设置相机的方向
-        glm::mat4 view = glm::lookAt(
-            cameraPosition,
-            glm::vec3(1.0f * sin(glm::radians(yaw)) * cos(glm::radians(pitch)),
-                      1.0f * sin(glm::radians(pitch)),
-                      1.0f * cos(glm::radians(yaw)) * cos(glm::radians(pitch))),
-            glm::vec3(0.0f, 1.0f, 0.0f));
-
+#if USE_GL_BEGIN_END
+        renderSphere(1.0f, 50, 50);
+#else
         renderPanorama(sphereData, projection, view);
-
-        setViewMatrix();  // 设置视角矩阵
-        // renderSphere(2.0f, 50, 50);
+#endif
 
         glfwSwapBuffers(window);
         glfwPollEvents();
