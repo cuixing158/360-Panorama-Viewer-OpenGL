@@ -10,7 +10,7 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "Sphere.h"
 
-#define USE_GL_BEGIN_END 1
+#define USE_GL_BEGIN_END 0
 
 class PanoramaRenderer {
    public:

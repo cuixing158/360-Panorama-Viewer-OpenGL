@@ -379,7 +379,7 @@ int main() {
 
     initPanoramaRenderer(sphere);
 
-    std::string imagePath = "E:/vscode_works/cpp_projects/panoviewer/images/360panorama.jpg";
+    std::string imagePath = "../images/360panorama.jpg";
     texture = loadTexture(imagePath.c_str());
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);  // 解绑 VBO,360全景图像最好需要
