@@ -183,6 +183,7 @@ void PanoramaRenderer::processInput() {
 
     if (glfwGetKey(m_window, GLFW_KEY_1) == GLFW_PRESS) {
         m_viewOrientation = PanoramaRenderer::ViewMode::PERSPECTIVE;
+        m_panoAnimator = PanoramaRenderer::PanoAnimator::NONE;
         m_pitch = 0.0f;
         m_prevPitch = 0.0f;
         m_yaw = 0.0f;
@@ -191,6 +192,7 @@ void PanoramaRenderer::processInput() {
 
     if (glfwGetKey(m_window, GLFW_KEY_2) == GLFW_PRESS) {
         m_viewOrientation = PanoramaRenderer::ViewMode::LITTLEPLANET;
+        m_panoAnimator = PanoramaRenderer::PanoAnimator::NONE;
         m_pitch = 90.0f;
         m_prevPitch = m_pitch;
         m_yaw = 0.0f;
@@ -198,6 +200,7 @@ void PanoramaRenderer::processInput() {
     }
     if (glfwGetKey(m_window, GLFW_KEY_3) == GLFW_PRESS) {
         m_viewOrientation = PanoramaRenderer::ViewMode::CRYSTALBALL;
+        m_panoAnimator = PanoramaRenderer::PanoAnimator::NONE;
         m_pitch = 0.0f;
         m_prevPitch = m_pitch;
         m_yaw = 0.0f;
@@ -322,21 +325,31 @@ void PanoramaRenderer::renderLoop() {
     while (!glfwWindowShouldClose(m_window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // step1, 处理用户输入
         processInput();
         if (m_panoMode == SwitchMode::PANORAMAVIDEO) {
             updateVideoFrame();
         }
 
-        // // 获取动画进度和当前相机参数
-        // if ((m_panoMode == SwitchMode::PANORAMAIMAGE) && (m_panoAnimator != PanoramaRenderer::PanoAnimator::NONE)) {
-        //     glm::vec3 cameraPos;
-        //     // float m_pitch, m_yaw, m_fov;
-        //     m_animationEffect.getInterpolatedParams(currentFrame, cameraPos, m_pitch, m_yaw, m_fov);
-        // }
+        // 待修复step2中的， m_cameraPosition, m_pitch, m_yaw, m_fov引起后续的m_view矩阵的计算正确性
+        //                                                         // // step2 获取动画进度和当前相机参数
+        //                                                         // if ((m_panoMode == SwitchMode::PANORAMAIMAGE) && (m_panoAnimator != PanoramaRenderer::PanoAnimator::NONE)) {
+        //                                                         //     float currentFrame = glfwGetTime();                // 获取当前时间
+        //                                                         //     float deltaTime = currentFrame - m_lastFrameTime;  // 计算帧间时间
+        //                                                         //     m_lastFrameTime = currentFrame;
+        //                                                         //     // 更新动画时间
+        //                                                         //     m_animationTime += deltaTime;
 
-        glm::mat4 m_projection, m_view;
+        //                                                         //     // 获得当前动画节点的相机参数，m_cameraPosition, m_pitch, m_yaw, m_fov
+        //                                                         //     m_animationEffect.getInterpolatedParams(m_animationTime, m_cameraPosition, m_pitch, m_yaw, m_fov);
+        //                                                         // }
+
+        // step3 设置视图矩阵
+        glm::mat4 m_projection,
+            m_view;
         getViewMatrix(m_projection, m_view);  // 获取投影和视角矩阵
 
+// step4 渲染
 #if USE_GL_BEGIN_END
         renderSphere(1.0f, 50, 50);
 #else
