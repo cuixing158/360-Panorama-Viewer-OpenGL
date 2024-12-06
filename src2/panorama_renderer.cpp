@@ -7,7 +7,7 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "Sphere.h"
 
-#define USE_GL_BEGIN_END 1
+#define USE_GL_BEGIN_END 0
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -258,29 +258,6 @@ void processInput(GLFWwindow* window) {
         pitch = glm::clamp(pitch, -89.0f, 89.0f);
     }
     yaw = glm::mod(yaw, 360.0f);
-}
-
-bool hasMultipleOf90With180IntervalExclusive(float previousPitch, float pitch) {
-    // Determine the minimum and maximum values
-    float minPitch = std::min(previousPitch, pitch);
-    float maxPitch = std::max(previousPitch, pitch);
-
-    // Calculate the first multiple of 90 greater than minPitch
-    float start = std::ceil(minPitch / 90.0f) * 90.0f;
-
-    // Ensure the starting multiple is greater than the minimum pitch
-    if (start <= minPitch) {
-        start += 180.0f;  // Get the next multiple
-    }
-
-    // Check for multiples of 90 within the exclusive range
-    for (float multiple = start; multiple < maxPitch; multiple += 180.0f) {
-        if (multiple > minPitch && multiple < maxPitch) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 bool hasDivisibleNode(float previousPitch, float pitch) {

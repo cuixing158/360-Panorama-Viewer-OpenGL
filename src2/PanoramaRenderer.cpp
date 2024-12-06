@@ -1,176 +1,64 @@
 #include "PanoramaRenderer.h"
 
-// 钩子函数，从ff_ffplay.c中执行
-cv::Mat PanoramaRenderer::frame;
-std::mutex PanoramaRenderer::textureMutex;
-panorama::DualFisheyeSticher initializeSticher();
-panorama::DualFisheyeSticher sticher = initializeSticher();
+// // 钩子函数，从ff_ffplay.c中执行
+// cv::Mat PanoramaRenderer::frame;
+// std::mutex PanoramaRenderer::textureMutex;
+// panorama::DualFisheyeSticher initializeSticher();
+// panorama::DualFisheyeSticher sticher = initializeSticher();
 
-panorama::DualFisheyeSticher initializeSticher() {
-    // 360 全景拼接初始化,下面参数适合insta360 设备的
-    panorama::cameraParam cam1, cam2;
-    cv::Size outputSize = cv::Size(2000, 1000);
-    float hemisphereWidth = 960.0f;                                                       //OBS推流是960.0f
-    cam1.circleFisheyeImage = cv::Mat::zeros(hemisphereWidth, hemisphereWidth, CV_8UC3);  // 前单个球
-    cam1.FOV = 189.2357;
-    cam1.centerPt = cv::Point2f(hemisphereWidth / 2.0, hemisphereWidth / 2.0);
-    cam1.radius = hemisphereWidth / 2.0;
-    cam1.rotateX = 0.01112242;
-    cam1.rotateY = 0.2971962;
-    cam1.rotateZ = -0.0007757799;
+// panorama::DualFisheyeSticher initializeSticher() {
+//     // 360 全景拼接初始化,下面参数适合insta360 设备的
+//     panorama::cameraParam cam1, cam2;
+//     cv::Size outputSize = cv::Size(2000, 1000);
+//     float hemisphereWidth = 960.0f;                                                       //OBS推流是960.0f
+//     cam1.circleFisheyeImage = cv::Mat::zeros(hemisphereWidth, hemisphereWidth, CV_8UC3);  // 前单个球
+//     cam1.FOV = 189.2357;
+//     cam1.centerPt = cv::Point2f(hemisphereWidth / 2.0, hemisphereWidth / 2.0);
+//     cam1.radius = hemisphereWidth / 2.0;
+//     cam1.rotateX = 0.01112242;
+//     cam1.rotateY = 0.2971962;
+//     cam1.rotateZ = -0.0007757799;
 
-    // cam2
-    cam2.circleFisheyeImage = cv::Mat::zeros(hemisphereWidth, hemisphereWidth, CV_8UC3);  // 后单个球;
-    cam2.FOV = 194.1712;
-    cam2.centerPt = cv::Point2f(hemisphereWidth / 2.0, hemisphereWidth / 2.0);
-    cam2.radius = hemisphereWidth / 2.0;
-    cam2.rotateX = -0.7172632;
-    cam2.rotateY = 0.5694329;
-    cam2.rotateZ = 179.9732;
-    panorama::DualFisheyeSticher sticher = panorama::DualFisheyeSticher(cam1, cam2, outputSize);
-    return sticher;
-}
+//     // cam2
+//     cam2.circleFisheyeImage = cv::Mat::zeros(hemisphereWidth, hemisphereWidth, CV_8UC3);  // 后单个球;
+//     cam2.FOV = 194.1712;
+//     cam2.centerPt = cv::Point2f(hemisphereWidth / 2.0, hemisphereWidth / 2.0);
+//     cam2.radius = hemisphereWidth / 2.0;
+//     cam2.rotateX = -0.7172632;
+//     cam2.rotateY = 0.5694329;
+//     cam2.rotateZ = 179.9732;
+//     panorama::DualFisheyeSticher sticher = panorama::DualFisheyeSticher(cam1, cam2, outputSize);
+//     return sticher;
+// }
 
-void processDecodedFrame(AVFrame *avFrame) {
-    PanoramaRenderer::processDecodedFrameImpl(avFrame);
-}
+// Function to create a shader program
+GLuint PanoramaRenderer::createProgram(const char *vertexSource, const char *fragmentSource) {
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexSource, nullptr);
+    glCompileShader(vertexShader);
 
-void PanoramaRenderer::processUI(cv::Mat &matFrame) {
-    // Lock the textureMutex and update the frame
-    std::lock_guard<std::mutex> lock(textureMutex);
-    {
-        cv::Mat img;
-        cv::cvtColor(matFrame, img, cv::COLOR_BGR2RGB);
-        cv::flip(img, img, 0);
-        frame = img.clone();
-
-        // 把frame中位于左右2个半球的鱼眼转换为equirectangular类型全景图
-        cv::Mat frontFrame = frame(cv::Rect(0, 0, frame.cols / 2, frame.rows));
-        cv::Mat backFrame = frame(cv::Rect(frame.cols / 2, 0, frame.cols / 2, frame.rows));
-        frame = sticher.stich(frontFrame, backFrame);
-    }
-}
-
-void PanoramaRenderer::processDecodedFrameImpl(AVFrame *avFrame) {
-    // Check if the frame is in a format OpenCV understands
-    if (avFrame->format != AV_PIX_FMT_BGR24 && avFrame->format != AV_PIX_FMT_RGB24) {
-        // Convert frame to BGR24 or RGB24 format using sws_scale
-        struct SwsContext *img_convert_ctx = sws_getContext(
-            avFrame->width, avFrame->height, (AVPixelFormat)avFrame->format,
-            avFrame->width, avFrame->height, AV_PIX_FMT_BGR24, SWS_BICUBIC,
-            nullptr, nullptr, nullptr);
-
-        AVFrame *pFrameBGR = av_frame_alloc();
-        int numBytes = av_image_get_buffer_size(AV_PIX_FMT_BGR24, avFrame->width, avFrame->height, 1);
-        uint8_t *buffer = (uint8_t *)av_malloc(numBytes * sizeof(uint8_t));
-
-        av_image_fill_arrays(pFrameBGR->data, pFrameBGR->linesize, buffer,
-                             AV_PIX_FMT_BGR24, avFrame->width, avFrame->height, 1);
-
-        sws_scale(img_convert_ctx, avFrame->data, avFrame->linesize, 0, avFrame->height,
-                  pFrameBGR->data, pFrameBGR->linesize);
-
-        // Now pFrameBGR contains the BGR24 formatted data.
-        // Convert this frame to OpenCV Mat
-        cv::Mat img(cv::Size(avFrame->width, avFrame->height), CV_8UC3, pFrameBGR->data[0], pFrameBGR->linesize[0]);
-        {
-            // Lock the textureMutex and update the frame
-            std::lock_guard<std::mutex> lock(textureMutex);
-            cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-            cv::flip(img, img, 0);
-            frame = img.clone();
-
-            // 把frame中位于左右2个半球的鱼眼转换为equirectangular类型全景图
-            cv::Mat frontFrame = frame(cv::Rect(0, 0, frame.cols / 2, frame.rows));
-            cv::Mat backFrame = frame(cv::Rect(frame.cols / 2, 0, frame.cols / 2, frame.rows));
-            frame = sticher.stich(frontFrame, backFrame);
-            //    cv::imwrite(sharePath+"/dst_stich_front.jpg",frontFrame);
-            //    cv::imwrite(sharePath+"/dst_stich_back.jpg",backFrame);
-            //    cv::imwrite(sharePath+"/dst_stich.jpg",frame);
-        }
-
-        // Free resources
-        av_free(buffer);
-        av_frame_free(&pFrameBGR);
-        sws_freeContext(img_convert_ctx);
-    } else {
-        // If the frame is already in BGR24 or RGB24 format, directly create the Mat
-        cv::Mat img(cv::Size(avFrame->width, avFrame->height), CV_8UC3, avFrame->data[0], avFrame->linesize[0]);
-        {
-            // Lock the textureMutex and update the frame
-            std::lock_guard<std::mutex> lock(textureMutex);
-            cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-            cv::flip(img, img, 0);
-            frame = img.clone();
-
-            cv::Mat frontFrame = frame(cv::Rect(0, 0, frame.cols / 2, frame.rows));
-            cv::Mat backFrame = frame(cv::Rect(frame.cols / 2, 0, frame.cols / 2, frame.rows));
-            frame = sticher.stich(frontFrame, backFrame);
-        }
-    }
-}
-
-PanoramaRenderer::PanoramaRenderer(AAssetManager *assetManager, std::string filepath)
-    : shaderProgram(0), texture(0), videoTexture(0), vboVertices(0), vboTexCoords(0), vboIndices(0), sphereData(new SphereData(1.0f, 50, 50)), assetManager(assetManager), sharePath(std::move(filepath)), rotationX(0.0f), rotationY(0.0f), zoom(1.0f), widthScreen(800), heightScreen(800), ahrs(1.0f / 60.0f), viewOrientation(ViewMode::LITTLEPLANET), gyroOpen(GyroMode::GYRODISABLED), panoMode(SwitchMode::PANORAMAIMAGE), view(glm::mat4(1.0)), gyroMat(glm::mat4(1.0)) {
-    // Open the input file
-    //std::string mp4File = sharePath+"/360panorama.mp4"; // 360panorama.mp4
-    //videoCapture.open(mp4File);
-
-    if (viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) {
-        zoom = 1;
-    } else if (viewOrientation == PanoramaRenderer::ViewMode::LITTLEPLANET) {
-        zoom = 2;
-    } else if (viewOrientation == PanoramaRenderer::ViewMode::CRYSTALBALL) {
-        zoom = 2;
-    } else {
-        zoom = 1;
-    }
-}
-
-PanoramaRenderer::~PanoramaRenderer() {
-    delete sphereData;
-    glDeleteProgram(shaderProgram);
-    glDeleteTextures(1, &texture);
-    glDeleteTextures(1, &videoTexture);
-    glDeleteBuffers(1, &vboVertices);
-    glDeleteBuffers(1, &vboTexCoords);
-    glDeleteBuffers(1, &vboIndices);
-    glDeleteVertexArrays(1, &vao);
-}
-
-GLuint PanoramaRenderer::loadShader(GLenum type, const char *shaderSrc) {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &shaderSrc, nullptr);
-    glCompileShader(shader);
-
-    GLint compiled;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-    if (!compiled) {
-        GLint infoLen = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
-        if (infoLen > 1) {
-            char *infoLog = new char[infoLen];
-            glGetShaderInfoLog(shader, infoLen, nullptr, infoLog);
-            LOGE("Error compiling shader:\n%s\n", infoLog);
-            delete[] infoLog;
-        }
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
-
-GLuint PanoramaRenderer::createProgram(const char *vertexSrc, const char *fragmentSrc) {
-    GLuint vertexShader = loadShader(GL_VERTEX_SHADER, vertexSrc);
-    if (!vertexShader) {
-        LOGE("Failed to load vertex shader");
+    // 检查顶点着色器编译是否成功
+    GLint success;
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n"
+                  << infoLog << std::endl;
         return 0;
     }
 
-    GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, fragmentSrc);
-    if (!fragmentShader) {
-        LOGE("Failed to load fragment shader");
-        glDeleteShader(vertexShader);
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentSource, nullptr);
+    glCompileShader(fragmentShader);
+
+    // 检查片段着色器编译是否成功
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n"
+                  << infoLog << std::endl;
         return 0;
     }
 
@@ -179,418 +67,420 @@ GLuint PanoramaRenderer::createProgram(const char *vertexSrc, const char *fragme
     glAttachShader(program, fragmentShader);
     glLinkProgram(program);
 
-    GLint linked;
-    glGetProgramiv(program, GL_LINK_STATUS, &linked);
-    if (!linked) {
-        GLint infoLen = 0;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLen);
-        if (infoLen > 1) {
-            char *infoLog = new char[infoLen];
-            glGetProgramInfoLog(program, infoLen, nullptr, infoLog);
-            LOGE("Error linking program:\n%s\n", infoLog);
-            delete[] infoLog;
-        }
-        glDeleteProgram(program);
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
+    // 检查程序链接是否成功
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n"
+                  << infoLog << std::endl;
         return 0;
     }
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+
     return program;
 }
 
-// 全景图像需要的函数
-GLuint PanoramaRenderer::loadTexture(const char *imagePath) {
-    int width, height, nrChannels;
-    cv::Mat img = cv::imread(imagePath, cv::IMREAD_COLOR);
-    if (img.empty()) {
-        LOGE("Failed to load texture image from asset:%s", imagePath);
-        return 0;
+void PanoramaRenderer::initPanoramaRenderer() {
+    const char *vertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec2 aTexCoord;
+    out vec2 TexCoord;
+    uniform mat4 projection;
+    uniform mat4 view;
+    void main() {
+        TexCoord = aTexCoord;
+        gl_Position = projection * view * vec4(aPos, 1.0);
     }
+)";
 
-    // Convert the image to RGB format if it is BGR
-    if (img.channels() == 3) {
-        cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+    const char *fragmentShaderSource = R"(
+    #version 330 core
+    in vec2 TexCoord;
+    out vec4 FragColor;
+    uniform sampler2D texture1;
+    void main() {
+        FragColor = texture(texture1, TexCoord);
     }
-    // Flip the image vertically
-    cv::flip(img, img, 0);
-    width = img.cols;
-    height = img.rows;
+)";
 
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    return texture;
-}
-
-void PanoramaRenderer::onSurfaceCreated() {
-    LOGI("onSurfaceCreated have successfully Initialized.\n");
-    const char *vertexShaderSource =
-        "#version 300 es\n"
-        "layout(location = 0) in vec3 aPos;\n"
-        "layout(location = 1) in vec2 aTexCoord;\n"
-        "out vec2 TexCoord;\n"
-        "uniform mat4 projection;\n"
-        "uniform mat4 view;\n"
-        "void main()\n"
-        "{\n"
-        "   TexCoord = aTexCoord;\n"
-        "   gl_Position = projection * view * vec4(aPos, 1.0);\n"
-        "}\n";
-
-    const char *fragmentShaderSource =
-        "#version 300 es\n"
-        "precision mediump float;\n"
-        "in vec2 TexCoord;\n"
-        "out vec4 FragColor;\n"
-        "uniform sampler2D texture1;\n"
-        "void main()\n"
-        "{\n"
-        "FragColor = texture(texture1, TexCoord);\n"
-        "}\n";
-
+    // 创建着色器程序
     shaderProgram = createProgram(vertexShaderSource, fragmentShaderSource);
-    if (!shaderProgram) {
-        LOGE("Failed to create shader program");
-        return;
-    }
 
+    // 生成 VAO 和 VBO
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vboVertices);
     glGenBuffers(1, &vboIndices);
     glGenBuffers(1, &vboTexCoords);
 
+    // 绑定 VAO
     glBindVertexArray(vao);
 
+    // 顶点数据
     glBindBuffer(GL_ARRAY_BUFFER, vboVertices);
     glBufferData(GL_ARRAY_BUFFER, sphereData->getNumVertices() * sizeof(GLfloat), sphereData->getVertices(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), nullptr);  // 第5个参数stride也可以设置为0来让OpenGL决定具体步长是多少（只有当数值是紧密排列时才可用）
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), nullptr);
     glEnableVertexAttribArray(0);
 
+    // 纹理坐标数据
     glBindBuffer(GL_ARRAY_BUFFER, vboTexCoords);
     glBufferData(GL_ARRAY_BUFFER, sphereData->getNumTexs() * sizeof(GLfloat), sphereData->getTexCoords(), GL_STATIC_DRAW);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nullptr);
     glEnableVertexAttribArray(1);
 
+    // 索引数据
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vboIndices);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sphereData->getNumIndices() * sizeof(GLushort), sphereData->getIndices(), GL_STATIC_DRAW);
 
-    if (panoMode == SwitchMode::PANORAMAIMAGE) {
-        std::string imagePath = sharePath + "/360panorama.jpg";
-        texture = loadTexture(imagePath.c_str());
-        if (!texture) {
-            LOGE("Failed to load texture");
-            return;
-        }
-        glBindBuffer(GL_ARRAY_BUFFER, 0);  // 解绑 VBO,360全景图像最好需要
-        glBindVertexArray(0);              // 解绑VAO,360全景图像最好需要
-        glGenerateMipmap(GL_TEXTURE_2D);   //全景图像使用，但是视频渲染不使用 glGenerateMipmap,较少性能开销
-    } else if (panoMode == SwitchMode::PANORAMAVIDEO) {
-        glGenTextures(1, &videoTexture);
-        glBindTexture(GL_TEXTURE_2D, videoTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frameWidth, frameHeight,
-                     0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    // 解绑 VAO
+    glBindVertexArray(0);
+}
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// 绘制球体，该函数是传统的立即模式渲染函数glBegin/glEnd，现代OpenGL中不推荐使用
+void PanoramaRenderer::renderSphere(float radius, int slices, int stacks) {
+    for (int i = 0; i < stacks; ++i) {
+        float phi0 = glm::pi<float>() * (-0.5 + (double)(i) / stacks);
+        float phi1 = glm::pi<float>() * (-0.5 + (double)(i + 1) / stacks);
+
+        glBegin(GL_TRIANGLE_STRIP);  // glBegin在OpenGL ES中不被支持，OpenGL ES 是 OpenGL 的一个子集，主要用于嵌入式系统
+        for (int j = 0; j <= slices; ++j) {
+            float theta = 2 * glm::pi<float>() * (double)(j) / slices;
+
+            for (int k = 0; k < 2; ++k) {
+                float phi = (k == 0) ? phi0 : phi1;
+                float x = cos(phi) * cos(theta);
+                float y = -sin(phi);
+                float z = cos(phi) * sin(theta);
+
+                glTexCoord2f((float)j / slices, 1.0f - (float)(i + k) / stacks);
+                glVertex3f(radius * x, radius * y, radius * z);
+            }
+        }
+        glEnd();
+    }
+}
+
+// 处理用户输入
+void PanoramaRenderer::processInput() {
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) pitch += 0.5f;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) pitch -= 0.5f;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) yaw -= 0.5f;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) yaw += 0.5f;
+
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+        viewOrientation = PanoramaRenderer::ViewMode::PERSPECTIVE;
+        pitch = 0.0f;
+        prevPitch = 0.0f;
+        yaw = 0.0f;
+        fov = 60.0f;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+        viewOrientation = PanoramaRenderer::ViewMode::LITTLEPLANET;
+        pitch = 90.0f;
+        prevPitch = pitch;
+        yaw = 0.0f;
+        fov = 120.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+        viewOrientation = PanoramaRenderer::ViewMode::CRYSTALBALL;
+        pitch = 0.0f;
+        prevPitch = pitch;
+        yaw = 0.0f;
+        fov = 85.0f;
+    }
+
+    // 只有透视图才限制俯仰角度
+    if (viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) {
+        pitch = glm::clamp(pitch, -89.0f, 89.0f);
+    }
+    yaw = glm::mod(yaw, 360.0f);
+}
+
+bool PanoramaRenderer::hasDivisibleNode(float previousPitch, float pitch) {
+    // 确保 previousPitch 小于 pitch
+    if (previousPitch > pitch) std::swap(previousPitch, pitch);
+
+    // 不包括边界
+    float lowerBound = previousPitch + std::numeric_limits<float>::epsilon();
+    float upperBound = pitch - std::numeric_limits<float>::epsilon();
+
+    // 找到第一个大于 lowerBound 的 "90 + 180*k" 的数
+    float start = 90.0f + std::ceil((lowerBound - 90.0f) / 180.0f) * 180.0f;
+
+    // 判断 start 是否在范围内
+    return start > lowerBound && start < upperBound;
+}
+
+// 设置视图矩阵
+void PanoramaRenderer::getViewMatrix(glm::mat4 &projection, glm::mat4 &view) {
+    static glm::vec3 upCamera = glm::vec3(0.0f, 1.0f, 0.0f);
+    // 设置投影矩阵
+    projection = glm::perspective(glm::radians(fov), (float)widthScreen / heightScreen, 0.1f, 100.0f);
+
+    // 根据当前视角模式设置视图矩阵
+    glm::vec3 movingPosition(sin(glm::radians(yaw)) * cos(glm::radians(pitch)), sin(glm::radians(pitch)), cos(glm::radians(yaw)) * cos(glm::radians(pitch)));  // 移动视角位置
+    if (viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) {
+        glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+        view = glm::lookAt(cameraPosition, movingPosition,
+                           glm::vec3(0, 1, 0));
+    } else if (viewOrientation == PanoramaRenderer::ViewMode::LITTLEPLANET) {
+        glm::vec3 cameraPosition = movingPosition;  // 在单位球表面
+
+        if (hasDivisibleNode(prevPitch, pitch)) {
+            upCamera[1] = upCamera[1] * -1.0f;
+        }
+
+        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
+        prevPitch = pitch;
+    } else if (viewOrientation == PanoramaRenderer::ViewMode::CRYSTALBALL) {
+        glm::vec3 cameraPosition = 1.5f * movingPosition;  // 球外部
+        if (hasDivisibleNode(prevPitch, pitch)) {
+            upCamera[1] = upCamera[1] * -1.0f;
+        }
+        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
+
+        prevPitch = pitch;
+    }
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(glm::value_ptr(projection));
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(glm::value_ptr(view));
+}
+
+void PanoramaRenderer::renderPanorama(SphereData *sphereData, glm::mat4 projection, glm::mat4 view) {
+    glUseProgram(shaderProgram);
+
+    // 设置 uniform 矩阵
+    GLuint projLoc = glGetUniformLocation(shaderProgram, "projection");
+    GLuint viewLoc = glGetUniformLocation(shaderProgram, "view");
+    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+
+    // 绑定纹理
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
+
+    // 绘制球体
+    glBindVertexArray(vao);
+    glDrawElements(GL_TRIANGLES, sphereData->getNumIndices(), GL_UNSIGNED_SHORT, 0);
+    glBindVertexArray(0);
+
+    glUseProgram(0);
+}
+
+// 渲染循环
+void PanoramaRenderer::renderLoop() {
+    while (!glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        processInput();
+        if (panoMode == SwitchMode::PANORAMAVIDEO) {
+            updateVideoFrame();
+        }
+
+        glm::mat4 projection, view;
+        getViewMatrix(projection, view);  // 获取投影和视角矩阵
+
+#if USE_GL_BEGIN_END
+        renderSphere(1.0f, 50, 50);
+#else
+        renderPanorama(sphereData, projection, view);
+#endif
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+}
+
+void PanoramaRenderer::mouse_callback(double xpos, double ypos) {
+    if (isDragging) {
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos;  // Y轴是反向的
+        lastX = xpos;
+        lastY = ypos;
+
+        // 更新相机角度（偏航yaw和俯仰pitch）
+        float sensitivity = 0.2f;  // 鼠标灵敏度
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        yaw += xoffset;
+        pitch += yoffset;
+    }
+}
+
+void PanoramaRenderer::mouse_button_callback(int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            isDragging = true;
+            glfwGetCursorPos(window, &lastX, &lastY);  // 记录鼠标按下时的位置
+        }
+        if (action == GLFW_RELEASE) {
+            isDragging = false;  // 释放鼠标时停止拖动
+        }
+    }
+}
+
+void PanoramaRenderer::scroll_callback(double xoffset, double yoffset) {
+    fov -= 4.0f * static_cast<float>(yoffset);  // 鼠标滚轮垂直移动
+    fov = glm::clamp(fov, 1.0f, 120.0f);        // 限制 FOV 的范围
+}
+
+bool PanoramaRenderer::isImageFile(const std::string &filepath) {
+    std::string extensions[] = {".jpg", ".jpeg", ".png", ".bmp", ".tga"};
+    for (const auto &ext : extensions) {
+        if (filepath.size() >= ext.size() && filepath.compare(filepath.size() - ext.size(), ext.size(), ext) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PanoramaRenderer::isVideoFile(const std::string &filepath) {
+    std::string extensions[] = {".mp4", ".avi", ".mov", ".mkv"};
+    for (const auto &ext : extensions) {
+        if (filepath.size() >= ext.size() && filepath.compare(filepath.size() - ext.size(), ext.size(), ext) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// 加载全景图像
+GLuint PanoramaRenderer::loadTexture(const char *path) {
+    cv::Mat image = cv::imread(path, cv::IMREAD_COLOR);
+    if (image.empty()) {
+        std::cerr << "无法加载图像: " << path << std::endl;
+        exit(1);
+    }
+
+    std::cout << "Loaded image with size: " << image.cols << "x" << image.rows << std::endl;
+
+    cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+    cv::flip(image, image, 0);
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.cols, image.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, image.data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    return textureID;
+}
+void PanoramaRenderer::updateVideoFrame() {
+    if (panoMode != SwitchMode::PANORAMAVIDEO || !videoCapture.isOpened()) return;
+
+    cv::Mat frame;
+    if (!videoCapture.read(frame)) {
+        // 视频读取结束，循环播放
+        videoCapture.set(cv::CAP_PROP_POS_FRAMES, 0);
+        videoCapture.read(frame);
+    }
+
+    // 转换为 OpenGL 纹理格式
+    cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+    cv::flip(frame, frame, 0);
+
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame.cols, frame.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, frame.data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+PanoramaRenderer::PanoramaRenderer(std::string filepath)
+    : window(nullptr), vao(0), vboVertices(0), vboIndices(0), vboTexCoords(0), shaderProgram(0), texture(0), projection(glm::mat4(1.0)), view(glm::mat4(1.0)), viewOrientation(ViewMode::PERSPECTIVE), panoMode(SwitchMode::PANORAMAIMAGE), widthScreen(1920), heightScreen(1080), pitch(0.0f), yaw(0.0f), prevPitch(0.0f), fov(60.0f), isDragging(false), lastX(0), lastY(0), sphereData(new SphereData(1.0f, 50, 50)) {
+    if (!glfwInit()) {
+        std::cerr << "GLFW 初始化失败!" << std::endl;
+        exit(-1);
+    }
+
+    window = glfwCreateWindow(widthScreen, heightScreen, "360 Panorama Viewer", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "窗口创建失败!" << std::endl;
+        glfwTerminate();
+        exit(-1);
+    }
+
+    glfwMakeContextCurrent(window);
+    glewInit();
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_2D);
+
+    // 初始化 SphereData
+    sphereData = new SphereData(1.0f, 50, 50);
+
+    initPanoramaRenderer();
+
+    // 检测文件类型
+    if (isImageFile(filepath)) {
+        // 处理全景图片
+        panoMode = SwitchMode::PANORAMAIMAGE;
+        texture = loadTexture(filepath.c_str());
+    } else if (isVideoFile(filepath)) {
+        // 处理全景视频
+        panoMode = SwitchMode::PANORAMAVIDEO;
+        videoCapture.open(filepath);
+        if (!videoCapture.isOpened()) {
+            std::cerr << "无法打开视频文件: " << filepath << std::endl;
+            exit(1);
+        }
+        // 提取第一帧作为初始纹理
+        updateVideoFrame();
+    } else {
+        std::cerr << "未知的文件类型: " << filepath << std::endl;
+        exit(1);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);  // 解绑 VBO,360全景图像最好需要
+    glBindVertexArray(0);              // 解绑VAO,360全景图像最好需要
+    if (panoMode == SwitchMode::PANORAMAIMAGE) {
+        glGenerateMipmap(GL_TEXTURE_2D);  // 全景图像需要 mipmap,但是视频渲染不使用 glGenerateMipmap,较少性能开销
     }
 
     // 启用深度测试，防止遮挡影响
     glEnable(GL_DEPTH_TEST);
     // 设置深度测试函数
     glDepthFunc(GL_LESS);
-    LOGI("onSurfaceCreated have successfully run.\n");
+
+    // 设置回调函数,设置当前实例为窗口的用户指针
+    glfwSetWindowUserPointer(window, this);
+
+    // 注册回调函数
+    glfwSetCursorPosCallback(window, [](GLFWwindow *window, double xpos, double ypos) {
+        auto *renderer = static_cast<PanoramaRenderer *>(glfwGetWindowUserPointer(window));
+        renderer->mouse_callback(xpos, ypos);
+    });
+
+    glfwSetMouseButtonCallback(window, [](GLFWwindow *window, int button, int action, int mods) {
+        auto *renderer = static_cast<PanoramaRenderer *>(glfwGetWindowUserPointer(window));
+        renderer->mouse_button_callback(button, action, mods);
+    });
+
+    glfwSetScrollCallback(window, [](GLFWwindow *window, double xoffset, double yoffset) {
+        auto *renderer = static_cast<PanoramaRenderer *>(glfwGetWindowUserPointer(window));
+        renderer->scroll_callback(xoffset, yoffset);
+    });
 }
 
-//void PanoramaRenderer::videoDecodingLoop() {
-//////////////////////////之前使用OpenCV解码视频播放/////////////////////////////////////
-//    while (!stopPlayback) {
-//        cv::Mat tempFrame;
-//        if (!videoCapture.read(tempFrame)) {
-//            LOGE("Failed to read frame from video");
-//            break;
-//        }
-//
-//        cv::flip(tempFrame,frame,0);
-//        //cv::cvtColor(tempFrame, tempFrame, cv::COLOR_BGR2RGB);
-//        // std::this_thread::sleep_for(std::chrono::milliseconds(30)); // Adjust frame rate if needed
-//        {
-//            std::lock_guard<std::mutex> lock(textureMutex);
-//            if (!frame.empty()) {
-//                frameReady = true;
-//                frameReadyCondition.notify_one();  // Notify the rendering thread
-//                LOGI("videoDecodingLoop: buffer copied and notified.");
-//            }
-//        }
-//    }
-/////////////////////end of 之前使用OpenCV解码视频播放/////////////////////////////////////
-// LOGI("videoDecodingLoop has successfully run.\n");
-//}
+PanoramaRenderer::~PanoramaRenderer() {
+    delete sphereData;
+    glDeleteProgram(shaderProgram);
+    glDeleteTextures(1, &texture);
+    // glDeleteTextures(1, &videoTexture);
+    glDeleteBuffers(1, &vboVertices);
+    glDeleteBuffers(1, &vboTexCoords);
+    glDeleteBuffers(1, &vboIndices);
+    glDeleteVertexArrays(1, &vao);
 
-void PanoramaRenderer::onDrawFrame() {
-    //    LOGI("onDrawFrame have successfully initialized.\n");
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(shaderProgram);
-
-    float fovDeg = 70 * zoom;
-    if (fovDeg < 50)
-        fovDeg = 50;
-    if (fovDeg > 145)
-        fovDeg = 145;
-
-    glm::vec3 cameraPos, target, upVector;
-    glm::vec3 viewDir, upDir;
-    if (viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) {
-        cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);  // 摄像机位置
-        target = glm::vec3(0.0f, 0.0f, -1.0f);    // 目标点
-        upVector = glm::vec3(0.0f, 1.0f, 0.0f);   // 上向量
-    } else if (viewOrientation == PanoramaRenderer::ViewMode::LITTLEPLANET) {
-        cameraPos = glm::vec3(0.0f, 1.0f, 0.0f);
-        target = glm::vec3(0.0f, 0.0f, 0.0f);
-        upVector = glm::vec3(-1.0f, 0.0f, 0.0f);
-    } else if (viewOrientation == PanoramaRenderer::ViewMode::CRYSTALBALL) {
-        cameraPos = glm::vec3(0.0f, -1.2f, 0.0f);
-        target = glm::vec3(0.0f, 0.0f, 0.0f);
-        upVector = glm::vec3(-1.0f, 1.0f, 0.0f);
-    } else {
-        cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
-        target = glm::vec3(0.0f, 0.0f, -1.0f);
-        upVector = glm::vec3(0.0f, 1.0f, 0.0f);
-    }
-
-    //    if (gyroOpen == PanoramaRenderer::GyroMode::GYROENABLED) {
-    //        cameraPos = glm::vec3(gyroMat*glm::vec4(cameraPos,1.0));
-    //        target = glm::vec3(gyroMat * glm::vec4(target, 1.0));
-    //        upVector = glm::vec3(gyroMat * glm::vec4(upVector, 0.0));
-    //
-    ////        glm::vec3 temp = glm::vec3(glm::vec4(1.0f,2.0f,3.0f,4.0f));
-    ////        LOGI("temp:%.f,%.f,%.f",temp[0],temp[1],temp[2]);
-    //        LOGI("target:%.0f,%.0f,%.0f,upVector:%.0f,%.0f,%.0f",target[0],target[1],target[2],
-    //             upVector[0],upVector[1],upVector[2]);
-    //    }
-
-    viewDir = glm::normalize(target - cameraPos);
-    upDir = glm::normalize(upVector);
-
-    // 生成视图矩阵
-    view = glm::lookAt(cameraPos, target, upVector);
-    if (gyroOpen == PanoramaRenderer::GyroMode::GYROENABLED) {
-        view = view * gyroMat;
-    }
-
-    if (gyroOpen == PanoramaRenderer::GyroMode::GYRODISABLED) {
-        glm::vec3 rotateAxis = glm::normalize(glm::cross(viewDir, upDir));
-        view = glm::rotate(view, glm::radians(rotationY), rotateAxis);  // 绕cameraPos中心旋转
-        view = glm::rotate(view, glm::radians(rotationX), upDir);
-    }
-
-    GLuint projLoc = glGetUniformLocation(shaderProgram, "projection");
-    GLuint viewLoc = glGetUniformLocation(shaderProgram, "view");
-
-    projection = glm::perspective(glm::radians(fovDeg), (float)widthScreen / (float)heightScreen, 0.1f, 100.0f);
-    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
-    glBindVertexArray(vao);
-
-    if (panoMode == SwitchMode::PANORAMAIMAGE) {
-        glActiveTexture(GL_TEXTURE0);           // 全景图像使用
-        glBindTexture(GL_TEXTURE_2D, texture);  // 全景图像使用
-    } else if (panoMode == SwitchMode::PANORAMAVIDEO) {
-        updateVideoFrame();
-        std::unique_lock<std::mutex> lock(textureMutex);
-        if (!frame.empty()) {
-            //cv::imwrite(sharePath + "/dst_ondrawFrame.jpg", frame);
-            glBindTexture(GL_TEXTURE_2D, videoTexture);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame.cols, frame.rows, GL_RGB, GL_UNSIGNED_BYTE, frame.data);
-        }
-    }
-
-    glDrawElements(GL_TRIANGLES, sphereData->getNumIndices(), GL_UNSIGNED_SHORT, 0);
-    glBindVertexArray(0);  // Unbind VAO
-    //    LOGI("onDrawFrame have successfully run.\n");
-}
-
-void PanoramaRenderer::onSurfaceChanged(int width, int height) {
-    //    LOGI("onSurfaceChanged have successfully initialized.\n");
-    widthScreen = width;
-    heightScreen = height;
-    glViewport(0, 0, width, height);
-    //    LOGI("onSurfaceChanged have successfully run.\n");
-}
-
-void PanoramaRenderer::handleTouchDrag(float deltaX, float deltaY) {
-    rotationX += deltaX * 0.1f;
-    rotationY += deltaY * 0.1f;
-}
-
-void PanoramaRenderer::handlePinchZoom(float scaleFactor) {
-    zoom *= scaleFactor;
-}
-
-void PanoramaRenderer::setSwitchMode(SwitchMode mode) {
-    panoMode = mode;
-}
-
-void PanoramaRenderer::setViewMode(ViewMode mode) {
-    viewOrientation = mode;
-}
-
-void PanoramaRenderer::setGyroMode(GyroMode mode) {
-    gyroOpen = mode;
-}
-
-void PanoramaRenderer::onGyroAccUpdate(float gyroX, float gyroY, float gyroZ, float accX, float accY, float accZ) {
-    glm::vec3 gyro(gyroX, gyroY, gyroZ);  // Gyroscope values in rad/s
-    glm::vec3 acc(accX, accY, accZ);      // Accelerometer values in m/s²
-}
-
-void PanoramaRenderer::onQuaternionUpdate(float quatW, float quatX, float quatY, float quatZ,
-                                          float accX, float accY, float accZ) {
-    // 参考https://source.android.com/docs/core/interaction/sensors/sensor-types?hl=zh-cn#accelerometer
-    // https://developer.android.com/reference/android/hardware/SensorEvent#values
-
-    // 创建四元数,为ENU世界坐标系下的设备绝对位姿
-    glm::quat deviceOrientation(quatW, quatX, quatY, quatZ);
-    //    glm::vec3 gravity = glm::vec3(accX,accY,accZ);
-
-    //    glm::vec3 euler = glm::degrees(glm::eulerAngles(deviceOrientation));
-    //    //LOGI("quaternion:%.2f,%.2f,%.2f,%.2f,accelerometer:%.2f,%.2f,%.2f",quatW,quatX,quatY,quatZ,accX,accY,accZ);
-    //    LOGI("euler:%.2f,%.2f,%.2f",euler.x,euler.y,euler.z);
-    //
-    //    // 重力方向的四元数（将重力方向标准化）
-    //    glm::vec3 gravityNormalized = glm::normalize(gravity);
-    //    glm::quat gravityOrientation = glm::quatLookAt(gravityNormalized, glm::vec3(0, 1,0));
-    //
-    //    // 计算最终的四元数
-    //    glm::quat finalOrientation = gravityOrientation * deviceOrientation;
-
-    // 将四元数转换为旋转矩阵
-    glm::mat4 rotationMatrix = glm::mat4_cast(deviceOrientation);
-    rotationMatrix = glm::transpose(rotationMatrix);
-    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
-    // 更新陀螺仪矩阵
-    gyroMat = rotationMatrix;
-}
-
-// Create external texture for video frames
-GLuint PanoramaRenderer::createExternalTexture() {
-    GLuint textureId;
-    glGenTextures(1, &textureId);
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, textureId);
-
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    // Unbind texture
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
-
-    return textureId;
-}
-
-// Update video frame
-void PanoramaRenderer::updateVideoFrame() {
-    std::lock_guard<std::mutex> lock(textureMutex);  // Lock for thread safety
-    if (frame.empty()) {
-        LOGI("frame is empty1!");
-        return;  // No frame to update
-    }
-
-    // Update the OpenGL texture with the current video frame
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, videoTexture);
-
-    // Upload frame data to texture
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame.cols, frame.rows, 0, GL_RGB, GL_UNSIGNED_BYTE, frame.data);
-
-    glBindTexture(GL_TEXTURE_2D, 0);  // Unbind texture
-}
-
-// JNI Interfaces
-extern "C" {
-JNIEXPORT jlong JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeCreateRenderer(JNIEnv *env, jobject obj, jobject assetManager, jstring path) {
-    AAssetManager *mgr = AAssetManager_fromJava(env, assetManager);
-    // Returns a pointer to an array of bytes representing the string
-    // in modified UTF-8 encoding. This array is valid until it is released
-    // by ReleaseStringUTFChars().
-    const char *temp = env->GetStringUTFChars(path, nullptr);
-    return reinterpret_cast<jlong>(new PanoramaRenderer(mgr, std::string(temp)));
-}
-
-JNIEXPORT jint JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeCreateExternalTexture(JNIEnv *env, jobject instance, jlong rendererPtr) {
-    // Cast the renderer pointer to your PanoramaRenderer class
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    // Call the createExternalTexture function and return the texture ID
-    return renderer->createExternalTexture();
-}
-
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeOnDrawFrame(JNIEnv *env, jobject instance, jlong rendererPtr) {
-    // Cast the renderer pointer to your PanoramaRenderer class
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-
-    // Call the onDrawFrame function which should include the call to updateVideoFrame()
-    renderer->onDrawFrame();
-}
-
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeOnSurfaceCreated(JNIEnv *env, jobject obj, jlong rendererPtr) {
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    renderer->onSurfaceCreated();
-}
-
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeOnSurfaceChanged(JNIEnv *env, jobject obj, jlong rendererPtr, jint width, jint height) {
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    renderer->onSurfaceChanged(width, height);
-}
-
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeHandleTouchDrag(JNIEnv *env, jobject obj, jlong rendererPtr, jfloat deltaX, jfloat deltaY) {
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    renderer->handleTouchDrag(deltaX, deltaY);
-}
-
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeHandlePinchZoom(JNIEnv *env, jobject obj, jlong rendererPtr, jfloat scaleFactor) {
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    renderer->handlePinchZoom(scaleFactor);
-}
-
-// 处理从 Java 传递来的陀螺仪数据
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeOnGyroAccUpdate(JNIEnv *env, jobject obj, jlong rendererPtr, jfloat gyroX, jfloat gyroY, jfloat gyroZ,
-                                                                                        jfloat accX, jfloat accY, jfloat accZ) {
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    if (renderer != nullptr) {
-        renderer->onGyroAccUpdate(gyroX, gyroY, gyroZ, accX, accY, accZ);
-    }
-}
-
-// 处理从 Java 传递来的陀螺仪数据，直接调用JAVA已经融合好的四元数
-JNIEXPORT void JNICALL
-Java_com_example_my360panorama_MainActivity_00024PanoramaRenderer_nativeOnGameRotationUpdate(JNIEnv *env, jobject obj, jlong rendererPtr, jfloat quatW, jfloat quatX, jfloat quatY,
-                                                                                             jfloat quatZ, jfloat accX, jfloat accY, jfloat accZ) {
-    PanoramaRenderer *renderer = reinterpret_cast<PanoramaRenderer *>(rendererPtr);
-    if (renderer != nullptr) {
-        renderer->onQuaternionUpdate(quatW, quatX, quatY, quatZ, accX, accY, accZ);
-    }
-}
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
