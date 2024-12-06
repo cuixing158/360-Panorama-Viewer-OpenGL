@@ -215,7 +215,7 @@ void renderSphere(float radius, int slices, int stacks) {
             for (int k = 0; k < 2; ++k) {
                 float phi = (k == 0) ? phi0 : phi1;
                 float x = cos(phi) * cos(theta);
-                float y = sin(phi);
+                float y = -sin(phi);
                 float z = cos(phi) * sin(theta);
 
                 glTexCoord2f((float)j / slices, 1.0f - (float)(i + k) / stacks);
@@ -242,7 +242,7 @@ void processInput(GLFWwindow* window) {
 
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
         currentView = TINY_PLANET;
-        pitch = 90.0f;
+        pitch = 89.0f;
         prevPitch = pitch;
         yaw = 0.0f;
     }
