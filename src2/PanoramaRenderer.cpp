@@ -114,7 +114,7 @@ void PanoramaRenderer::initPanoramaRenderer() {
     out vec4 FragColor;
     uniform sampler2D texture1;
     void main() {
-        FragColor = m_texture(texture1, TexCoord);
+        FragColor = texture(texture1, TexCoord);
     }
 )";
 
@@ -419,7 +419,7 @@ bool PanoramaRenderer::isVideoFile(const std::string &filepath) {
 GLuint PanoramaRenderer::loadTexture(const char *path) {
     cv::Mat image = cv::imread(path, cv::IMREAD_COLOR);
     if (image.empty()) {
-        std::cerr << "无法加载图像: " << path << std::endl;
+        std::cerr << "can not load image: " << path << std::endl;
         exit(1);
     }
 
@@ -461,13 +461,13 @@ void PanoramaRenderer::updateVideoFrame() {
 PanoramaRenderer::PanoramaRenderer(std::string filepath)
     : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_projection(glm::mat4(1.0)), m_view(glm::mat4(1.0)), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(1920), m_heightScreen(1080), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)) {
     if (!glfwInit()) {
-        std::cerr << "GLFW 初始化失败!" << std::endl;
+        std::cerr << "GLFW init failed!" << std::endl;
         exit(-1);
     }
 
     m_window = glfwCreateWindow(m_widthScreen, m_heightScreen, "360 Panorama Viewer", nullptr, nullptr);
     if (!m_window) {
-        std::cerr << "窗口创建失败!" << std::endl;
+        std::cerr << "create window failed!" << std::endl;
         glfwTerminate();
         exit(-1);
     }
@@ -493,13 +493,13 @@ PanoramaRenderer::PanoramaRenderer(std::string filepath)
         m_panoMode = SwitchMode::PANORAMAVIDEO;
         m_videoCapture.open(filepath);
         if (!m_videoCapture.isOpened()) {
-            std::cerr << "无法打开视频文件: " << filepath << std::endl;
+            std::cerr << "Cannot open video file: " << filepath << std::endl;
             exit(1);
         }
         // 提取第一帧作为初始纹理
         updateVideoFrame();
     } else {
-        std::cerr << "未知的文件类型: " << filepath << std::endl;
+        std::cerr << "Unknow file type: " << filepath << std::endl;
         exit(1);
     }
 
