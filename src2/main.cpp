@@ -3,6 +3,11 @@
 #include "PanoramaRenderer.h"
 int main(int argc, char* argv[]) {
     if (argc == 1 || (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))) {
+        std::string filepath = "../images/360panorama.jpg";
+        PanoramaRenderer renderer(filepath);
+        // 进入渲染循环等操作
+        renderer.renderLoop();
+
         std::cout << " Usage: " << argv[0] << " [filepath] [-h|--help]" << std::endl;
         std::cout << "  filepath: Path to the panorama image or video file." << std::endl;
         std::cout << "  -h, --help: Show this help message." << std::endl;

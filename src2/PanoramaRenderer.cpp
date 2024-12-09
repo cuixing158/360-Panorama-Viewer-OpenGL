@@ -214,21 +214,46 @@ void PanoramaRenderer::processInput() {
 
             m_animationTime = 0.0f;  // 重置动画时间
             m_panoAnimator = PanoramaRenderer::PanoAnimator::ROTATE;
-            // 创建一个4个节点3个阶段动画效果
-            m_animationEffect =  // 创建一个4节点的动画效果（3个阶段）
+
+            // 创建一个4节点、3个阶段的动画效果
+            glm::vec3 eulerAngles0(0.0f, glm::radians(0.0f), 0.0f);  // 0度绕X, 0度绕Y, 0度绕Z
+            glm::quat rotationQuaternion0(eulerAngles0);             // 创建旋转四元数
+
+            glm::vec3 eulerAngles1(0.0f, glm::radians(180.0f), 0.0f);  // 旋转90度绕Y轴
+            glm::quat rotationQuaternion1(eulerAngles1);               // 创建旋转四元数
+
+            glm::vec3 eulerAngles2(-glm::radians(90.0f), glm::radians(360.0f), 0.0f);  // 旋转180度绕Y轴
+            glm::quat rotationQuaternion2(eulerAngles2);                               // 创建旋转四元数
+
+            glm::vec3 eulerAngles3(0.0f, glm::radians(0.0f), 0.0f);  // 旋转270度绕Y轴
+            glm::quat rotationQuaternion3(eulerAngles3);             // 创建旋转四元数
+
+            m_animationEffect = AnimationEffect<4>{
+                // 节点的相机位置
                 {
-                    // 节点的相机位置
-                    {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f)},
-                    // 节点的pitch, m_yaw, m_fov
-                    {0.0f, 0.0f, 90.0f, 0.0f},
-                    {0.0f, 360.0f, 0.0f, 0.0f},
-                    {60.0f, 60.0f, 120.0f, 60.0f},
+                    glm::vec3(0.0f, 0.0f, 0.0f),  // 第1个节点
+                    glm::vec3(0.0f, 0.0f, 0.0f),  // 第2个节点
+                    glm::vec3(0.0f, 1.0f, 0.0f),  // 第3个节点
+                    glm::vec3(0.0f, 0.0f, 0.0f)   // 第4个节点
+                },
 
-                    // 每个阶段的时长
-                    {10.0f, 2.0f, 3.0f},
+                // 节点的相机朝向四元数
+                {
+                    rotationQuaternion0,  // 第1个节点的旋转
+                    rotationQuaternion1,  // 第2个节点的旋转
+                    rotationQuaternion2,  // 第3个节点的旋转
+                    rotationQuaternion3   // 第4个节点的旋转
+                },
 
-                    false  // 不循环
-                };
+                // 节点的FOV
+                {60.0f, 60.0f, 120.0f, 60.0f},  // FOV值为60, 60, 120, 60度
+
+                // 每个阶段的时长
+                {5.0f, 2.0f, 3.0f},  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
+
+                // 是否循环
+                false  // 不循环
+            };
 
         } else if (glfwGetKey(m_window, GLFW_KEY_F2) == GLFW_PRESS) {
             // 启动第二种动画效果
@@ -261,51 +286,75 @@ bool PanoramaRenderer::hasDivisibleNode(float previousPitch, float m_pitch) {
     return start > lowerBound && start < upperBound;
 }
 
-// 设置视图矩阵
-void PanoramaRenderer::getViewMatrix(glm::mat4 &m_projection, glm::mat4 &m_view) {
+// 根据手动交互得到的m_pitch,m_yaw得到视图矩阵
+void PanoramaRenderer::getViewMatrixForStatic(glm::mat4 &projection, glm::mat4 &view) {
     static glm::vec3 upCamera = glm::vec3(0.0f, 1.0f, 0.0f);
     // 设置投影矩阵
-    m_projection = glm::perspective(glm::radians(m_fov), (float)m_widthScreen / m_heightScreen, 0.1f, 100.0f);
+    projection = glm::perspective(glm::radians(m_fov), (float)m_widthScreen / m_heightScreen, 0.1f, 100.0f);
 
     // 根据当前视角模式设置视图矩阵
     glm::vec3 movingPosition(sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch)), sin(glm::radians(m_pitch)), cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch)));  // 移动视角位置
+    glm::vec3 cameraPosition;
     if (m_viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) {
-        m_cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-        m_view = glm::lookAt(m_cameraPosition, movingPosition,
-                             glm::vec3(0, 1, 0));
+        cameraPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+        view = glm::lookAt(cameraPosition, movingPosition,
+                           glm::vec3(0, 1, 0));
     } else if (m_viewOrientation == PanoramaRenderer::ViewMode::LITTLEPLANET) {
-        m_cameraPosition = movingPosition;  // 在单位球表面
+        cameraPosition = movingPosition;  // 在单位球表面
 
         if (hasDivisibleNode(m_prevPitch, m_pitch)) {
             upCamera[1] = upCamera[1] * -1.0f;
         }
 
-        m_view = glm::lookAt(m_cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
+        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
         m_prevPitch = m_pitch;
     } else if (m_viewOrientation == PanoramaRenderer::ViewMode::CRYSTALBALL) {
-        m_cameraPosition = 1.5f * movingPosition;  // 球外部
+        cameraPosition = 1.5f * movingPosition;  // 球外部
         if (hasDivisibleNode(m_prevPitch, m_pitch)) {
             upCamera[1] = upCamera[1] * -1.0f;
         }
-        m_view = glm::lookAt(m_cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
+        view = glm::lookAt(cameraPosition, glm::vec3(0.0f, 0.0f, 0.0f), upCamera);
 
         m_prevPitch = m_pitch;
     }
 
     glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(glm::value_ptr(m_projection));
+    glLoadMatrixf(glm::value_ptr(projection));
     glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(glm::value_ptr(m_view));
+    glLoadMatrixf(glm::value_ptr(view));
 }
 
-void PanoramaRenderer::renderPanorama(SphereData *m_sphereData, glm::mat4 m_projection, glm::mat4 m_view) {
+// 获取动态视图矩阵,照片动画师功能
+void PanoramaRenderer::getViewMatrixForAnimation(glm::vec3 cameraPos, glm::quat cameraRot, float fov, glm::mat4 &projection, glm::mat4 &view) {
+    // 计算投影矩阵
+    projection = glm::perspective(glm::radians(fov), (float)m_widthScreen / m_heightScreen, 0.1f, 100.0f);
+
+    // 计算视图矩阵
+    // 获取相机的前向、右向和上向向量
+    glm::vec3 forward = glm::normalize(cameraRot * glm::vec3(0.0f, 0.0f, -1.0f));  // 朝向
+    // glm::vec3 right = glm::normalize(cameraRot * glm::vec3(1.0f, 0.0f, 0.0f));     // 右向
+    glm::vec3 up = glm::normalize(cameraRot * glm::vec3(0.0f, 1.0f, 0.0f));  // 上向
+
+    // 视图矩阵：使用 lookAt 来创建视图矩阵
+    // 目标点通常是相机视线的目标，在全景中可以设定为 0,0,0。
+    glm::vec3 target = cameraPos + forward;     // 目标点是当前相机位置加上朝向向量
+    view = glm::lookAt(cameraPos, target, up);  // 计算视图矩阵
+
+    // 将视图矩阵应用于OpenGL
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(glm::value_ptr(projection));
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(glm::value_ptr(view));
+}
+
+void PanoramaRenderer::renderPanorama(SphereData *sphereData, glm::mat4 projection, glm::mat4 view) {
     glUseProgram(m_shaderProgram);
 
     // 设置 uniform 矩阵
     GLuint projLoc = glGetUniformLocation(m_shaderProgram, "m_projection");
     GLuint viewLoc = glGetUniformLocation(m_shaderProgram, "m_view");
-    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(m_projection));
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(m_view));
+    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
     // 绑定纹理
     glActiveTexture(GL_TEXTURE0);
@@ -314,7 +363,7 @@ void PanoramaRenderer::renderPanorama(SphereData *m_sphereData, glm::mat4 m_proj
 
     // 绘制球体
     glBindVertexArray(m_vao);
-    glDrawElements(GL_TRIANGLES, m_sphereData->getNumIndices(), GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLES, sphereData->getNumIndices(), GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 
     glUseProgram(0);
@@ -331,29 +380,33 @@ void PanoramaRenderer::renderLoop() {
             updateVideoFrame();
         }
 
-        // 待修复step2中的， m_cameraPosition, m_pitch, m_yaw, m_fov引起后续的m_view矩阵的计算正确性
-        //                                                         // // step2 获取动画进度和当前相机参数
-        //                                                         // if ((m_panoMode == SwitchMode::PANORAMAIMAGE) && (m_panoAnimator != PanoramaRenderer::PanoAnimator::NONE)) {
-        //                                                         //     float currentFrame = glfwGetTime();                // 获取当前时间
-        //                                                         //     float deltaTime = currentFrame - m_lastFrameTime;  // 计算帧间时间
-        //                                                         //     m_lastFrameTime = currentFrame;
-        //                                                         //     // 更新动画时间
-        //                                                         //     m_animationTime += deltaTime;
+        // 计算projection和view矩阵
+        // step2 获取动画进度和当前相机参数 // step3 设置视图矩阵
+        glm::mat4 projection, view;
+        if ((m_panoMode == SwitchMode::PANORAMAIMAGE) && (m_panoAnimator != PanoramaRenderer::PanoAnimator::NONE)) {
+            float currentFrame = glfwGetTime();                // 获取当前时间
+            float deltaTime = currentFrame - m_lastFrameTime;  // 计算帧间时间
+            m_lastFrameTime = currentFrame;
+            // 更新动画时间
+            m_animationTime += deltaTime;
 
-        //                                                         //     // 获得当前动画节点的相机参数，m_cameraPosition, m_pitch, m_yaw, m_fov
-        //                                                         //     m_animationEffect.getInterpolatedParams(m_animationTime, m_cameraPosition, m_pitch, m_yaw, m_fov);
-        //                                                         // }
+            // 获得当前动画节点的相机参数，m_cameraPosition,, m_fov
+            glm::vec3 cameraPosition;
+            glm::quat cameraOrientation;
+            float fov;
+            m_animationEffect.getInterpolatedParams(m_animationTime, cameraPosition, cameraOrientation, fov);
 
-        // step3 设置视图矩阵
-        glm::mat4 m_projection,
-            m_view;
-        getViewMatrix(m_projection, m_view);  // 获取投影和视角矩阵
+            std::cout << "m_animationTime:" << m_animationTime << ",cameraPosition:" << cameraPosition.x << "," << cameraPosition.y << "," << cameraPosition.z << ",fov:" << fov << std::endl;
+            getViewMatrixForAnimation(cameraPosition, cameraOrientation, fov, projection, view);  // 获取投影和视角矩阵, 动画视角
+        } else {
+            getViewMatrixForStatic(projection, view);  // 获取投影和视角矩阵, 静态视角
+        }
 
 // step4 渲染
 #if USE_GL_BEGIN_END
         renderSphere(1.0f, 50, 50);
 #else
-        renderPanorama(m_sphereData, m_projection, m_view);
+        renderPanorama(m_sphereData, projection, view);
 #endif
 
         glfwSwapBuffers(m_window);
@@ -459,7 +512,7 @@ void PanoramaRenderer::updateVideoFrame() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 PanoramaRenderer::PanoramaRenderer(std::string filepath)
-    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_projection(glm::mat4(1.0)), m_view(glm::mat4(1.0)), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(1920), m_heightScreen(1080), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)) {
+    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(1920), m_heightScreen(1080), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)) {
     if (!glfwInit()) {
         std::cerr << "GLFW init failed!" << std::endl;
         exit(-1);

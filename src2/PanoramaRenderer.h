@@ -28,8 +28,7 @@
 template <int N>
 struct AnimationEffect {
     glm::vec3 CameraPosNodes[N];  // 动画在N个节点上的相机位置
-    float PitchNodes[N];          // 动画在N个节点上的pitch角度
-    float YawNodes[N];            // 动画在N个节点上的yaw角度
+    glm::quat CameraRotNodes[N];  // 动画在N个节点上的相机朝向四元数
     float FovNodes[N];            // 动画在N个节点上的fov角度
 
     float stagesDuration[N - 1];  // 每个阶段的时长（N-1个阶段）
@@ -58,18 +57,19 @@ struct AnimationEffect {
         return 1.0f;  // 动画结束
     }
 
-    // 获取当前阶段的参数（例如：相机位置，pitch, yaw, fov）
-    void getInterpolatedParams(float currentTime, glm::vec3 &cameraPos, float &pitch, float &yaw, float &fov) const {
+    // 获取当前阶段的参数（例如：相机位置，方向，fov）
+    void getInterpolatedParams(float currentTime, glm::vec3 &cameraPos, glm::quat &cameraRot, float &fov) const {
         float progress = getStageProgress(currentTime);
 
         for (int i = 0; i < N - 1; i++) {
             float stageStartTime = i > 0 ? stagesDuration[i - 1] : 0.0f;
             if (currentTime <= stageStartTime + stagesDuration[i]) {
-                // 线性插值计算相机位置和视角
+                // 线性插值计算相机位置和fov
                 cameraPos = glm::mix(CameraPosNodes[i], CameraPosNodes[i + 1], progress);
-                pitch = glm::mix(PitchNodes[i], PitchNodes[i + 1], progress);
-                yaw = glm::mix(YawNodes[i], YawNodes[i + 1], progress);
                 fov = glm::mix(FovNodes[i], FovNodes[i + 1], progress);
+
+                // 使用slerp对四元数进行插值，计算相机朝向
+                cameraRot = glm::slerp(CameraRotNodes[i], CameraRotNodes[i + 1], progress);
                 break;
             }
         }
@@ -112,7 +112,9 @@ class PanoramaRenderer {
     void processInput();
     bool hasDivisibleNode(float previousPitch, float pitch);
     // 获取视图矩阵
-    void getViewMatrix(glm::mat4 &projection, glm::mat4 &view);
+    void getViewMatrixForStatic(glm::mat4 &projection, glm::mat4 &view);
+    // 由当前的相机位置，方向，fov获取视图矩阵
+    void getViewMatrixForAnimation(glm::vec3 cameraPos, glm::quat cameraRot, float fov, glm::mat4 &projection, glm::mat4 &view);
     void renderPanorama(SphereData *sphereData, glm::mat4 projection, glm::mat4 view);
     // 鼠标按下和移动回调函数
     void mouse_callback(double xpos, double ypos);
@@ -126,9 +128,6 @@ class PanoramaRenderer {
     GLuint m_vao, m_vboVertices, m_vboIndices, m_vboTexCoords;  // 顶点数组对象和缓冲对象
     GLuint m_shaderProgram, m_texture;                          // 着色器程序和纹理对象
 
-    glm::mat4 m_projection;
-    glm::mat4 m_view;
-
     ViewMode m_viewOrientation;   // 透视图，小行星，水晶球
     PanoAnimator m_panoAnimator;  // 全景动画类型,仅仅全景照片适用
     SwitchMode m_panoMode;        // 全景视频，全景图像切换
@@ -137,11 +136,10 @@ class PanoramaRenderer {
     int m_widthScreen;
     int m_heightScreen;
 
-    glm::vec3 m_cameraPosition;
-    float m_pitch, m_yaw, m_prevPitch;  // 摄像机旋转角度
-    float m_fov;                        // 初始视野角度
-    bool m_isDragging;                  // 是否正在拖动鼠标
-    double m_lastX, m_lastY;            // 上次鼠标的位置
+    float m_pitch, m_yaw, m_prevPitch;  // 摄像机旋转角度,适合手动交互时候使用的变量
+    float m_fov;                        // 初始视野角度,适合手动交互时候使用的变量
+    bool m_isDragging;                  // 是否正在拖动鼠标,适合手动交互时候使用的变量
+    double m_lastX, m_lastY;            // 上次鼠标的位置,适合手动交互时候使用的变量
     SphereData *m_sphereData;
     cv::VideoCapture m_videoCapture;
 
