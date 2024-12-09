@@ -13,10 +13,11 @@
 #ifndef PANORAMARENDERER_H
 #define PANORAMARENDERER_H
 
+#include <iostream>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
-#include <iostream>
+
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -24,7 +25,7 @@
 
 #define USE_GL_BEGIN_END 0
 
-// 照片动画N个节点，N-1个区间段，首尾节点数据保持一致，表示回到原处状态
+// 照片动画N个节点，N-1个区间段，如果首尾节点数据保持一致，表示回到原处状态
 template <int N>
 struct AnimationEffect {
     glm::vec3 CameraPosNodes[N];  // 动画在N个节点上的相机位置
@@ -32,7 +33,6 @@ struct AnimationEffect {
     float FovNodes[N];            // 动画在N个节点上的fov角度
 
     float stagesDuration[N - 1];  // 每个阶段的时长（N-1个阶段）
-    bool isLooping;               // 是否循环播放
 
     // 计算动画的总时长
     float getTotalDuration() const {
@@ -61,8 +61,12 @@ struct AnimationEffect {
     void getInterpolatedParams(float currentTime, glm::vec3 &cameraPos, glm::quat &cameraRot, float &fov) const {
         float progress = getStageProgress(currentTime);
 
+        // 处理插值
+        float accumulatedStageTime = 0.0f;
         for (int i = 0; i < N - 1; i++) {
-            float stageStartTime = i > 0 ? stagesDuration[i - 1] : 0.0f;
+            float stageStartTime = accumulatedStageTime;
+            accumulatedStageTime += stagesDuration[i];  // 累加前面的阶段时长
+
             if (currentTime <= stageStartTime + stagesDuration[i]) {
                 // 线性插值计算相机位置和fov
                 cameraPos = glm::mix(CameraPosNodes[i], CameraPosNodes[i + 1], progress);

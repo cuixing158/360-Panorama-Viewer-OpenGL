@@ -246,13 +246,10 @@ void PanoramaRenderer::processInput() {
                 },
 
                 // 节点的FOV
-                {60.0f, 60.0f, 120.0f, 60.0f},  // FOV值为60, 60, 120, 60度
+                {60.0f, 60.0f, 120.0f, 80.0f},  // FOV值为60, 60, 120, 60度
 
                 // 每个阶段的时长
-                {5.0f, 2.0f, 3.0f},  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
-
-                // 是否循环
-                false  // 不循环
+                {5.0f, 5.0f, 5.0f},  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
             };
 
         } else if (glfwGetKey(m_window, GLFW_KEY_F2) == GLFW_PRESS) {
@@ -336,7 +333,6 @@ void PanoramaRenderer::getViewMatrixForAnimation(glm::vec3 cameraPos, glm::quat 
     glm::vec3 up = glm::normalize(cameraRot * glm::vec3(0.0f, 1.0f, 0.0f));  // 上向
 
     // 视图矩阵：使用 lookAt 来创建视图矩阵
-    // 目标点通常是相机视线的目标，在全景中可以设定为 0,0,0。
     glm::vec3 target = cameraPos + forward;     // 目标点是当前相机位置加上朝向向量
     view = glm::lookAt(cameraPos, target, up);  // 计算视图矩阵
 
@@ -396,7 +392,6 @@ void PanoramaRenderer::renderLoop() {
             float fov;
             m_animationEffect.getInterpolatedParams(m_animationTime, cameraPosition, cameraOrientation, fov);
 
-            std::cout << "m_animationTime:" << m_animationTime << ",cameraPosition:" << cameraPosition.x << "," << cameraPosition.y << "," << cameraPosition.z << ",fov:" << fov << std::endl;
             getViewMatrixForAnimation(cameraPosition, cameraOrientation, fov, projection, view);  // 获取投影和视角矩阵, 动画视角
         } else {
             getViewMatrixForStatic(projection, view);  // 获取投影和视角矩阵, 静态视角
