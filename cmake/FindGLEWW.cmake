@@ -7,7 +7,7 @@
 # GLEW_LIBRARY
 # 
 
-set(GLEW_ROOT_DIR "E:/softwares/glew-2.1.0-win32/glew-2.1.0")
+set(GLEW_ROOT_DIR "E:/softwares/glew-2.1.0-win32/glew-2.1.0") # you should set this to your GLEW root directory
 IF (WIN32)
 # static
 	# FIND_PATH( GLEW_INCLUDE_PATH 
@@ -20,7 +20,7 @@ IF (WIN32)
 	PATHS
 	${GLEW_ROOT_DIR}/lib/Release/x64
 		DOC "The GLEW library")
-	message(STATUS, "GLEW_LIBRARY库文件: ${GLEW_LIBRARY},头文件GLEW_INCLUDE_PATH：${GLEW_INCLUDE_PATH}")
+	# message(STATUS, "GLEW_LIBRARY库文件: ${GLEW_LIBRARY},头文件GLEW_INCLUDE_PATH：${GLEW_INCLUDE_PATH}")
 	ADD_DEFINITIONS(-DGLEW_STATIC)
 	
 	#FIND_LIBRARY( GLEW_LIBRARY

@@ -20,7 +20,7 @@
 # Allow the user to select to link to a shared library or to a static library.
 
 #Search for the include file...
-set(GLFW_ROOT_DIR "E:/softwares/glfw-3.4.bin.WIN64")
+set(GLFW_ROOT_DIR "E:/softwares/glfw-3.4.bin.WIN64")  # you should set this to your GLEW root directory
 FIND_PATH(GLFW_INCLUDE_DIR GLFW/glfw3.h
   DOC "Path to GLFW include directory."
   HINTS $ENV{GLFW_ROOT}

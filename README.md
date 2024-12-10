@@ -18,7 +18,7 @@ cd 360-panorama-viewer
 mkdir build
 cd build
 cmake ..
-make
+cmake --build .
 ```
 
 ## How to run
@@ -26,6 +26,8 @@ make
 ```bash
 360Viewer [video_file or image_file]
 ```
+
+示例全景数据在`data/`目录下，可以直接加载运行。
 
 鼠标操作:
 

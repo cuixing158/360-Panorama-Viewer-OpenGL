@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.0) 
-project(PanoViewer)
+project(360PanoramaViewer)
 
 # look for modules in this dir
 # message(STATUS "CMAKE_MODULE_PATH原始路径：${CMAKE_MODULE_PATH}，CMAKE_SOURCE_DIR：${CMAKE_SOURCE_DIR}")
@@ -16,7 +16,7 @@ ENDIF(MSVC)
 
 FIND_PACKAGE(GLFW REQUIRED)
 
-message(STATUS "GLFW_LIBRARY:${GLFW_LIBRARY}")
+# message(STATUS "GLFW_LIBRARY:${GLFW_LIBRARY}")
 
 IF(MSVC)
    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ox /Ob2 /GS- /MP /fp:fast")
@@ -38,54 +38,10 @@ if(UNIX)
   find_package(Threads REQUIRED)
 endif(UNIX)
 
-  # includes
-  INCLUDE_DIRECTORIES( "./src/" )
-  INCLUDE_DIRECTORIES( ${GLEW_INCLUDE_PATH} )
-  INCLUDE_DIRECTORIES( ${GLFW_INCLUDE_DIR} )
-
-  # libjpeg
-  ADD_SUBDIRECTORY(libjpeg)
-  INCLUDE_DIRECTORIES("./libjpeg")
-  include_directories("${CMAKE_CURRENT_BINARY_DIR}/libjpeg")
-
-  source_group(glew FILES ${GLEW_SRC_FILE})
-
-SET(SRC_PANOVIEWER 
-  src/camera.h
-  src/glfont.h src/glfont.cpp
-  src/image.h src/imgjpg.h src/quaterniont.h src/vec3t.h
-  src/pnm.h src/pnm.cpp src/glutil.h src/glutil.cpp
-  src/TiledImage.h src/TiledImage.cpp
-  src/main.cpp
-  )
-SOURCE_GROUP(PanoViewer FILES ${SRC_PANOVIEWER})
-
-# WIN32
-ADD_EXECUTABLE(PanoViewer 
-  ${SRC_PANOVIEWER})
-target_include_directories(PanoViewer PUBLIC ${GLEW_INCLUDE_PATH})
-target_link_libraries(PanoViewer ${GLEW_LIBRARY} ${GLFW_LIBRARY})
-
-SET(WINLIBS winmm.lib)
-SET(LIBRARIES ${OPENGL_LIBRARIES} ${OPENGL_LIBRARY} ${GLEW_LIBRARY} ${X11_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
-
-IF(MSVC)
-  TARGET_LINK_LIBRARIES(PanoViewer ${LIBRARIES} ${WINLIBS} libjpeg)
-ELSE(MSVC)
-  TARGET_LINK_LIBRARIES(PanoViewer ${LIBRARIES} libjpeg)
-ENDIF(MSVC)
-
 
 # set(OpenCV_DIR "E:/softwares/MinGW64_v8_OpenCV4_4_Contrib_install")
 find_package(OpenCV REQUIRED)
 
-# 使用自己编写的全景渲染模块
-add_executable(myPanoViewer src2/panorama_renderer.cpp src2/Sphere.cpp)
-target_include_directories(myPanoViewer PUBLIC ${GLEW_INCLUDE_PATH} ${GLFW_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} src2)
-message(STATUS "OpenCV_LIBS:${OpenCV_LIBS}")
-target_link_libraries(myPanoViewer ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARIES} ${OPENGL_LIBRARY} ${OpenCV_LIBS})
+# 包含 src 子目录
+add_subdirectory(src)
 
-add_executable(360Viewer src2/main.cpp src2/PanoramaRenderer.cpp src2/Sphere.cpp)
-target_include_directories(360Viewer PUBLIC ${GLEW_INCLUDE_PATH} ${GLFW_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} src2)
-message(STATUS "OpenCV_LIBS:${OpenCV_LIBS}")
-target_link_libraries(360Viewer ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARIES} ${OPENGL_LIBRARY} ${OpenCV_LIBS})

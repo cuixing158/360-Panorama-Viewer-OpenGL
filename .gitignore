@@ -9,17 +9,11 @@
 !/cmake/
 !/cmake/**
 
-!/libjpeg/
-!/libjpeg/**
-
 !/images/
 !/images/**
 
 !/src/
 !/src/**/
-
-!/src2/
-!/src2/**
 
 !/glm/
 !/glm/**
