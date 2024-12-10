@@ -76,16 +76,16 @@ ELSE(MSVC)
 ENDIF(MSVC)
 
 
-
-# 使用自己编写的全景渲染模块
 # set(OpenCV_DIR "E:/softwares/MinGW64_v8_OpenCV4_4_Contrib_install")
 find_package(OpenCV REQUIRED)
+
+# 使用自己编写的全景渲染模块
 add_executable(myPanoViewer src2/panorama_renderer.cpp src2/Sphere.cpp)
 target_include_directories(myPanoViewer PUBLIC ${GLEW_INCLUDE_PATH} ${GLFW_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} src2)
 message(STATUS "OpenCV_LIBS:${OpenCV_LIBS}")
 target_link_libraries(myPanoViewer ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARIES} ${OPENGL_LIBRARY} ${OpenCV_LIBS})
 
-add_executable(myPanoViewer2 src2/main.cpp src2/PanoramaRenderer.cpp src2/Sphere.cpp)
-target_include_directories(myPanoViewer2 PUBLIC ${GLEW_INCLUDE_PATH} ${GLFW_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} src2)
+add_executable(360Viewer src2/main.cpp src2/PanoramaRenderer.cpp src2/Sphere.cpp)
+target_include_directories(360Viewer PUBLIC ${GLEW_INCLUDE_PATH} ${GLFW_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} src2)
 message(STATUS "OpenCV_LIBS:${OpenCV_LIBS}")
-target_link_libraries(myPanoViewer2 ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARIES} ${OPENGL_LIBRARY} ${OpenCV_LIBS})
+target_link_libraries(360Viewer ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARIES} ${OPENGL_LIBRARY} ${OpenCV_LIBS})
