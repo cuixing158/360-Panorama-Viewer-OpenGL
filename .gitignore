@@ -12,6 +12,9 @@
 !/images/
 !/images/**
 
+!/data/
+!/data/**
+
 !/src/
 !/src/**/
 

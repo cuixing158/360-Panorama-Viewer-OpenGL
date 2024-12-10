@@ -26,18 +26,17 @@
 #define USE_GL_BEGIN_END 0
 
 // 照片动画N个节点，N-1个区间段，如果首尾节点数据保持一致，表示回到原处状态
-template <int N>
 struct AnimationEffect {
-    glm::vec3 CameraPosNodes[N];  // 动画在N个节点上的相机位置
-    glm::quat CameraRotNodes[N];  // 动画在N个节点上的相机朝向四元数
-    float FovNodes[N];            // 动画在N个节点上的fov角度
+    std::vector<glm::vec3> CameraPosNodes;  // 动画在N个节点上的相机位置
+    std::vector<glm::quat> CameraRotNodes;  // 动画在N个节点上的相机朝向四元数
+    std::vector<float> FovNodes;            // 动画在N个节点上的fov角度
 
-    float stagesDuration[N - 1];  // 每个阶段的时长（N-1个阶段）
+    std::vector<float> stagesDuration;  // 每个阶段的时长（N-1个阶段）,长度比上面数组少1
 
     // 计算动画的总时长
     float getTotalDuration() const {
         float totalDuration = 0.0f;
-        for (int i = 0; i < N - 1; i++) {
+        for (size_t i = 0; i < stagesDuration.size(); i++) {
             totalDuration += stagesDuration[i];
         }
         return totalDuration;
@@ -47,7 +46,7 @@ struct AnimationEffect {
     float getStageProgress(float currentTime) const {
         float accumulatedTime = 0.0f;
 
-        for (int i = 0; i < N - 1; i++) {
+        for (size_t i = 0; i < stagesDuration.size(); i++) {
             accumulatedTime += stagesDuration[i];
             if (currentTime <= accumulatedTime) {
                 float stageStartTime = accumulatedTime - stagesDuration[i];
@@ -63,7 +62,7 @@ struct AnimationEffect {
 
         // 处理插值
         float accumulatedStageTime = 0.0f;
-        for (int i = 0; i < N - 1; i++) {
+        for (size_t i = 0; i < stagesDuration.size(); i++) {
             float stageStartTime = accumulatedStageTime;
             accumulatedStageTime += stagesDuration[i];  // 累加前面的阶段时长
 
@@ -148,9 +147,9 @@ class PanoramaRenderer {
     cv::VideoCapture m_videoCapture;
 
     // 照片动画师
-    AnimationEffect<4> m_animationEffect;  // 三阶段的动画效果
-    float m_animationTime = 0.0f;          // 当前动画的计时器
-    float m_lastFrameTime = 0.0f;          // 上一帧的时间戳
+    AnimationEffect m_animationEffect;  // 三阶段的动画效果
+    float m_animationTime = 0.0f;       // 当前动画的计时器
+    float m_lastFrameTime = 0.0f;       // 上一帧的时间戳
 };
 
 #endif  // PANORAMARENDERER_H

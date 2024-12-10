@@ -4,7 +4,7 @@
 
 ## Dependencies
 
-- OpenCV 4.x <https://opencv.org/> (用于读取图片、视频和处理文件)
+- OpenCV <https://opencv.org/> (用于读取图片、视频和处理文件)
 - GLEW <http://glew.sourceforge.net/> （用于OpenGL函数加载）
 - GLFW 3 <http://www.glfw.org/> (用于桌面应用程序窗口管理,事件处理)
 

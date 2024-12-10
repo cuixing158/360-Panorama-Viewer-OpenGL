@@ -210,59 +210,148 @@ void PanoramaRenderer::processInput() {
     if (m_panoMode == SwitchMode::PANORAMAIMAGE)  // 照片动画师功能
     {
         if (glfwGetKey(m_window, GLFW_KEY_F1) == GLFW_PRESS) {
-            // 启动第一种动画效果
-
+            // 启动第一种动画效果，360度四周变化
             m_animationTime = 0.0f;  // 重置动画时间
+
             m_panoAnimator = PanoramaRenderer::PanoAnimator::ROTATE;
 
-            // 创建一个4节点、3个阶段的动画效果
+            // 创建一个6节点、5个阶段的动画效果
             glm::vec3 eulerAngles0(0.0f, glm::radians(0.0f), 0.0f);  // 0度绕X, 0度绕Y, 0度绕Z
             glm::quat rotationQuaternion0(eulerAngles0);             // 创建旋转四元数
+
+            glm::vec3 eulerAngles1(0.0f, glm::radians(180.0f), 0.0f);  // 旋转180度绕Y轴
+            glm::quat rotationQuaternion1(eulerAngles1);               // 创建旋转四元数
+
+            glm::vec3 eulerAngles2(0.0f, glm::radians(360.0f), 0.0f);  // 旋转360度绕Y轴
+            glm::quat rotationQuaternion2(eulerAngles2);               // 创建旋转四元数
+
+            glm::vec3 eulerAngles3(-glm::radians(45.0f), glm::radians(180.0f), 0.0f);
+            glm::quat rotationQuaternion3(eulerAngles3);  // 创建旋转四元数
+
+            glm::vec3 eulerAngles4(-glm::radians(90.0f), glm::radians(360.0f), 0.0f);
+            glm::quat rotationQuaternion4(eulerAngles4);  // 创建旋转四元数
+
+            glm::vec3 eulerAngles5(0.0f, glm::radians(0.0f), 0.0f);  // 回到起始点
+            glm::quat rotationQuaternion5(eulerAngles5);             // 创建旋转四元数
+
+            m_animationEffect.CameraPosNodes = {
+                // 节点的相机位置
+                glm::vec3(0.0f, 0.0f, 0.0f),  // 第1个节点
+                glm::vec3(0.0f, 0.0f, 0.0f),  // 第2个节点
+                glm::vec3(0.0f, 0.0f, 0.0f),  // 第3个节点
+                glm::vec3(0.0f, 0.5f, 0.0f),  // 第4个节点
+                glm::vec3(0.0f, 1.0f, 0.0f),  // 第5个节点
+                glm::vec3(0.0f, 0.0f, 0.0f)   // 第6个节点
+            };
+
+            m_animationEffect.CameraRotNodes = {
+                // 节点的相机朝向四元数
+                rotationQuaternion0,  // 第1个节点的旋转
+                rotationQuaternion1,  // 第2个节点的旋转
+                rotationQuaternion2,  // 第3个节点的旋转
+                rotationQuaternion3,  // 第4个节点的旋转
+                rotationQuaternion4,  // 第5个节点的旋转
+                rotationQuaternion5   // 第6个节点的旋转
+            };
+
+            m_animationEffect.FovNodes = {                                             // 节点的FOV
+                                          60.0f, 60.0f, 60.0f, 90.0f, 120.0f, 60.0f};  // FOV值为60, 60, 120, 60度
+
+            m_animationEffect.stagesDuration = {                                // 每个阶段的时长
+                                                4.0f, 4.0f, 1.0f, 1.0f, 1.0f};  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
+        } else if (glfwGetKey(m_window, GLFW_KEY_F2) == GLFW_PRESS) {
+            // 启动第二种动画效果，地变天视图
+            m_animationTime = 0.0f;  // 重置动画时间
+
+            m_panoAnimator = PanoramaRenderer::PanoAnimator::SWIPE;
+
+            // 创建一个4节点、3个阶段的动画效果
+            glm::vec3 eulerAngles0(-glm::radians(90.0f), glm::radians(0.0f), 0.0f);  // 0度绕X, 0度绕Y, 0度绕Z
+            glm::quat rotationQuaternion0(eulerAngles0);                             // 创建旋转四元数
 
             glm::vec3 eulerAngles1(0.0f, glm::radians(180.0f), 0.0f);  // 旋转90度绕Y轴
             glm::quat rotationQuaternion1(eulerAngles1);               // 创建旋转四元数
 
-            glm::vec3 eulerAngles2(-glm::radians(90.0f), glm::radians(360.0f), 0.0f);  // 旋转180度绕Y轴
-            glm::quat rotationQuaternion2(eulerAngles2);                               // 创建旋转四元数
+            glm::vec3 eulerAngles2(glm::radians(90.0f), glm::radians(360.0f), 0.0f);  // 旋转360度绕Y轴
+            glm::quat rotationQuaternion2(eulerAngles2);                              // 创建旋转四元数
 
             glm::vec3 eulerAngles3(0.0f, glm::radians(0.0f), 0.0f);  // 旋转270度绕Y轴
             glm::quat rotationQuaternion3(eulerAngles3);             // 创建旋转四元数
 
-            m_animationEffect = AnimationEffect<4>{
+            m_animationEffect.CameraPosNodes = {
                 // 节点的相机位置
-                {
-                    glm::vec3(0.0f, 0.0f, 0.0f),  // 第1个节点
-                    glm::vec3(0.0f, 0.0f, 0.0f),  // 第2个节点
-                    glm::vec3(0.0f, 1.0f, 0.0f),  // 第3个节点
-                    glm::vec3(0.0f, 0.0f, 0.0f)   // 第4个节点
-                },
-
-                // 节点的相机朝向四元数
-                {
-                    rotationQuaternion0,  // 第1个节点的旋转
-                    rotationQuaternion1,  // 第2个节点的旋转
-                    rotationQuaternion2,  // 第3个节点的旋转
-                    rotationQuaternion3   // 第4个节点的旋转
-                },
-
-                // 节点的FOV
-                {60.0f, 60.0f, 120.0f, 80.0f},  // FOV值为60, 60, 120, 60度
-
-                // 每个阶段的时长
-                {5.0f, 5.0f, 5.0f},  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
+                glm::vec3(0.0f, 1.0f, 0.0f),   // 第1个节点
+                glm::vec3(0.0f, 0.0f, 0.0f),   // 第2个节点
+                glm::vec3(0.0f, -1.0f, 0.0f),  // 第3个节点
+                glm::vec3(0.0f, 0.0f, 0.0f)    // 第4个节点
             };
 
-        } else if (glfwGetKey(m_window, GLFW_KEY_F2) == GLFW_PRESS) {
-            // 启动第二种动画效果
-            m_animationTime = 0.0f;  // 重置动画时间
+            m_animationEffect.CameraRotNodes = {
+                // 节点的相机朝向四元数
+
+                rotationQuaternion0,  // 第1个节点的旋转
+                rotationQuaternion1,  // 第2个节点的旋转
+                rotationQuaternion2,  // 第3个节点的旋转
+                rotationQuaternion3   // 第4个节点的旋转
+            };
+
+            m_animationEffect.FovNodes = {                                // 节点的FOV
+                                          120.0f, 60.0f, 120.0f, 80.0f};  // FOV值为60, 60, 120, 60度
+
+            m_animationEffect.stagesDuration = {                    // 每个阶段的时长
+                                                5.0f, 2.0f, 2.0f};  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
+
         } else if (glfwGetKey(m_window, GLFW_KEY_F3) == GLFW_PRESS) {
-            // 启动第三种动画效果
+            // 启动第三种动画效果,天变地视图
             m_animationTime = 0.0f;  // 重置动画时间
+
+            m_panoAnimator = PanoramaRenderer::PanoAnimator::SWIPE_ROTATE;
+
+            // 创建一个4节点、3个阶段的动画效果
+            glm::vec3 eulerAngles0(glm::radians(90.0f), glm::radians(0.0f), 0.0f);  // 0度绕X, 90度绕Y, 0度绕Z
+            glm::quat rotationQuaternion0(eulerAngles0);                            // 创建旋转四元数
+
+            glm::vec3 eulerAngles1(glm::radians(90.0f), glm::radians(0.0f), 0.0f);  //
+            glm::quat rotationQuaternion1(eulerAngles1);                            // 创建旋转四元数
+
+            glm::vec3 eulerAngles2(0.0f, glm::radians(180.0f), 0.0f);  // 旋转90度绕Y轴
+            glm::quat rotationQuaternion2(eulerAngles2);               // 创建旋转四元数
+
+            glm::vec3 eulerAngles3(-glm::radians(90.0f), glm::radians(360.0f), 0.0f);  //
+            glm::quat rotationQuaternion3(eulerAngles3);                               // 创建旋转四元数
+
+            glm::vec3 eulerAngles4(0.0f, glm::radians(0.0f), 0.0f);  //
+            glm::quat rotationQuaternion4(eulerAngles4);             // 创建旋转四元数
+
+            m_animationEffect.CameraPosNodes = {
+                // 节点的相机位置
+                glm::vec3(0.0f, -1.0f, 0.0f),  // 第1个节点
+                glm::vec3(0.0f, -1.0f, 0.0f),  // 第2个节点
+                glm::vec3(0.0f, 0.0f, 0.0f),   // 第3个节点
+                glm::vec3(0.0f, 1.0f, 0.0f),   // 第4个节点
+                glm::vec3(0.0f, 0.0f, 0.0f)    // 第5个节点
+            };
+
+            m_animationEffect.CameraRotNodes = {
+                // 节点的相机朝向四元数
+
+                rotationQuaternion0,  // 第1个节点的旋转
+                rotationQuaternion1,  // 第2个节点的旋转
+                rotationQuaternion2,  // 第3个节点的旋转
+                rotationQuaternion3,  // 第4个节点的旋转
+                rotationQuaternion4   // 第5个节点的旋转
+            };
+
+            m_animationEffect.FovNodes = {                                        // 节点的FOV
+                                          120.0f, 110.0f, 60.0f, 120.0f, 60.0f};  // FOV值为120, 110, 60, 60, 120, 60度
+
+            m_animationEffect.stagesDuration = {                          // 每个阶段的时长
+                                                1.5f, 3.0f, 2.0f, 2.0f};  // 阶段1：10秒，阶段2：2秒，阶段3：3秒
         }
     }
 
-    // 只有透视图才限制俯仰角度
-    if (m_viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) {
+    // 只有在手动交互式的透视图才限制俯仰角度
+    if ((m_viewOrientation == PanoramaRenderer::ViewMode::PERSPECTIVE) && (m_panoAnimator == PanoramaRenderer::PanoAnimator::NONE)) {
         m_pitch = glm::clamp(m_pitch, -89.0f, 89.0f);
     }
     m_yaw = glm::mod(m_yaw, 360.0f);
@@ -507,7 +596,7 @@ void PanoramaRenderer::updateVideoFrame() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 PanoramaRenderer::PanoramaRenderer(std::string filepath)
-    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(1920), m_heightScreen(1080), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)) {
+    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(640), m_heightScreen(480), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)) {
     if (!glfwInit()) {
         std::cerr << "GLFW init failed!" << std::endl;
         exit(-1);
