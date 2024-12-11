@@ -2,6 +2,8 @@
 
 桌面360 VR全景查看器，使用C++ OpenGL 渲染全景图像或者视频，它们应当具有`equirectangular projection`类型，支持鼠标拖曳、滚轮缩放、键盘控制等功能。
 
+<https://github.com/user-attachments/assets/e2ad83f3-ab59-45b2-8718-c3bda1aa53fd>
+
 ## Dependencies
 
 - OpenCV <https://opencv.org/> (用于读取图片、视频和处理文件)
