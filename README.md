@@ -47,6 +47,11 @@ cmake --build .
 
 *照片动画师模式*可以描述为一张全景图片自动生成一段不同视角的视频，并且按照一定的速度播放，形成动画播放效果。
 
+## Note
+
+全景图像渲染使用的OpenGL坐标系如下：
+![OpenGL坐标系](./images/OpenGL_coordinae.jpg)
+
 ## References
 
 1. <https://github.com/cuixing158/360-panorama-OpenGLES>
