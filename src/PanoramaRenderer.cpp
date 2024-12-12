@@ -11,37 +11,6 @@
 */
 #include "PanoramaRenderer.h"
 
-// // 钩子函数，从ff_ffplay.c中执行
-// cv::Mat PanoramaRenderer::frame;
-// std::mutex PanoramaRenderer::textureMutex;
-// panorama::DualFisheyeSticher initializeSticher();
-// panorama::DualFisheyeSticher sticher = initializeSticher();
-
-// panorama::DualFisheyeSticher initializeSticher() {
-//     // 360 全景拼接初始化,下面参数适合insta360 设备的
-//     panorama::cameraParam cam1, cam2;
-//     cv::Size outputSize = cv::Size(2000, 1000);
-//     float hemisphereWidth = 960.0f;                                                       //OBS推流是960.0f
-//     cam1.circleFisheyeImage = cv::Mat::zeros(hemisphereWidth, hemisphereWidth, CV_8UC3);  // 前单个球
-//     cam1.FOV = 189.2357;
-//     cam1.centerPt = cv::Point2f(hemisphereWidth / 2.0, hemisphereWidth / 2.0);
-//     cam1.radius = hemisphereWidth / 2.0;
-//     cam1.rotateX = 0.01112242;
-//     cam1.rotateY = 0.2971962;
-//     cam1.rotateZ = -0.0007757799;
-
-//     // cam2
-//     cam2.circleFisheyeImage = cv::Mat::zeros(hemisphereWidth, hemisphereWidth, CV_8UC3);  // 后单个球;
-//     cam2.FOV = 194.1712;
-//     cam2.centerPt = cv::Point2f(hemisphereWidth / 2.0, hemisphereWidth / 2.0);
-//     cam2.radius = hemisphereWidth / 2.0;
-//     cam2.rotateX = -0.7172632;
-//     cam2.rotateY = 0.5694329;
-//     cam2.rotateZ = 179.9732;
-//     panorama::DualFisheyeSticher sticher = panorama::DualFisheyeSticher(cam1, cam2, outputSize);
-//     return sticher;
-// }
-
 // Function to create a shader program
 GLuint PanoramaRenderer::createProgram(const char *vertexSource, const char *fragmentSource) {
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
