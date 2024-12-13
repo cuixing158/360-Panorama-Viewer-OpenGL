@@ -10,6 +10,7 @@
 - GLEW <http://glew.sourceforge.net/> （用于OpenGL函数加载）
 - GLFW 3 <http://www.glfw.org/> (用于桌面应用程序窗口管理,事件处理)
 
+> [!TIP]
 > 注意：选用上述库的原因是因为它们都是开源的，而且都有良好的跨平台支持。当然也可以选择其它库，比如Qt、FFMPEG、SDL、wxWidgets等。另外，对于桌面360 VR项目的渲染，如果只考虑渲染和性能，GLFW是更推荐的选择，能够提供更好的控制和性能。另一方面，如果需要配合音频、复杂输入和其他多媒体功能，SDL可能会更合适。
 
 ## How to build
