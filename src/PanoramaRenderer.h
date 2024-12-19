@@ -149,7 +149,7 @@ class PanoramaRenderer {
     // 照片动画师
     AnimationEffect m_animationEffect;  // 三阶段的动画效果
     float m_animationTime = 0.0f;       // 当前动画的计时器
-    float m_lastFrameTime = 0.0f;       // 上一帧的时间戳
+    float m_lastFrameTime;              // 上一帧的时间戳
 };
 
 #endif  // PANORAMARENDERER_H

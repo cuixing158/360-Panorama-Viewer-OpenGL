@@ -438,9 +438,9 @@ void PanoramaRenderer::renderLoop() {
         // step2 获取动画进度和当前相机参数 // step3 设置视图矩阵
         glm::mat4 projection, view;
         if ((m_panoMode == SwitchMode::PANORAMAIMAGE) && (m_panoAnimator != PanoramaRenderer::PanoAnimator::NONE)) {
-            float currentFrame = glfwGetTime();                // 获取当前时间
-            float deltaTime = currentFrame - m_lastFrameTime;  // 计算帧间时间
-            m_lastFrameTime = currentFrame;
+            float currentFrameTime = cv::getTickCount();                                      // 获取当前时间
+            float deltaTime = (currentFrameTime - m_lastFrameTime) / cv::getTickFrequency();  // 计算帧间时间
+            m_lastFrameTime = currentFrameTime;
             // 更新动画时间
             m_animationTime += deltaTime;
 
@@ -565,7 +565,7 @@ void PanoramaRenderer::updateVideoFrame() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 PanoramaRenderer::PanoramaRenderer(std::string filepath)
-    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(640), m_heightScreen(480), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)) {
+    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(640), m_heightScreen(480), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)), m_lastFrameTime((float)cv::getTickCount()) {
     if (!glfwInit()) {
         std::cerr << "GLFW init failed!" << std::endl;
         exit(-1);
