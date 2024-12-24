@@ -180,8 +180,8 @@ void PanoramaRenderer::processInput() {
     if (glfwGetKey(m_window, GLFW_KEY_P) == GLFW_PRESS) {
         double t1 = cv::getTickCount();
         exportAnimationEffect("panoAnimator.mp4", 1920, 1080, 30);
+        // startExportAnimationEffect("panoAnimator.mp4", 1920, 1080, 30); // 多线程导出还存在一些bug
         printf("it take time:%f seconds.\n", (cv::getTickCount() - t1) / cv::getTickFrequency());
-        // startExportAnimationEffect("panoAnimator.mp4", 1920, 1080, 30);
     }
 
     // 处理全景照片动画师功能
@@ -580,7 +580,7 @@ PanoramaRenderer::PanoramaRenderer(std::string filepath)
         exit(-1);
     }
 
-    m_window = glfwCreateWindow(m_widthScreen, m_heightScreen, "360 Panorama Viewer", nullptr, nullptr);
+    m_window = glfwCreateWindow(m_widthScreen, m_heightScreen, "360 Panorama Viewer", nullptr, m_window);
     if (!m_window) {
         std::cerr << "create window failed!" << std::endl;
         glfwTerminate();
@@ -658,21 +658,21 @@ void PanoramaRenderer::startExportAnimationEffect(const std::string &outputFile,
     m_exporting.store(true);  // 设置导出标志
 
     // 启动后台线程进行导出
-    m_exportThread = std::thread(&PanoramaRenderer::exportAnimationEffect, this, outputFile, width, height, fps);
+    m_exportThread = std::thread(&PanoramaRenderer::exportAnimationEffectThread, this, outputFile, width, height, fps);
     m_exportThread.detach();  // 分离线程，避免阻塞主线程
 }
 
 // 后台导出视频的实现
 void PanoramaRenderer::exportAnimationEffectThread(const std::string &outputFile, int width, int height, int fps) {
-    // 确保在此线程中使用主线程的 OpenGL 上下文
+    // 在后台线程中，确保使用主窗口的 OpenGL 上下文
     glfwMakeContextCurrent(m_window);  // 确保当前线程使用主上下文
 
-    // 创建一个帧缓冲对象 (FBO)
+    // 创建 FBO
     GLuint fbo;
     glGenFramebuffers(1, &fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-    // 创建一个纹理来存储渲染结果
+    // 创建纹理并绑定到 FBO 的颜色附件
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -681,35 +681,19 @@ void PanoramaRenderer::exportAnimationEffectThread(const std::string &outputFile
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
 
-    // 创建并附加一个深度缓冲区
+    // 创建深度缓冲区并绑定到 FBO 的深度附件
     GLuint rbo;
     glGenRenderbuffers(1, &rbo);
     glBindRenderbuffer(GL_RENDERBUFFER, rbo);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_widthScreen, m_heightScreen);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
 
+    // 检查 FBO 完整性
     GLenum framebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (framebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
         std::cerr << "Framebuffer not complete! Error code: " << framebufferStatus << std::endl;
-        switch (framebufferStatus) {
-            case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
-                std::cerr << "Incomplete attachment!" << std::endl;
-                break;
-            case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
-                std::cerr << "Missing attachment!" << std::endl;
-                break;
-            case GL_FRAMEBUFFER_UNSUPPORTED:
-                std::cerr << "Framebuffer unsupported!" << std::endl;
-                break;
-            default:
-                std::cerr << "Unknown error!" << std::endl;  // 待解决
-                break;
-        }
-        return;
-    }
 
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cerr << "Framebuffer not complete!" << std::endl;
+        m_exporting.store(false);  // 重置导出标志
         return;
     }
 
@@ -720,7 +704,7 @@ void PanoramaRenderer::exportAnimationEffectThread(const std::string &outputFile
         return;
     }
 
-    // 获取当前动画模式的结构体，根据时刻0到总时间T，快速生成渲染帧，然后写入视频文件
+    // 渲染和写入帧
     float totalTime = m_animationEffect.getTotalDuration();
     for (float t = 0.0f; t < totalTime; t += 1.0f / fps) {
         glm::vec3 cameraPosition;
@@ -732,7 +716,7 @@ void PanoramaRenderer::exportAnimationEffectThread(const std::string &outputFile
         glm::mat4 projection, view;
         getViewMatrixForAnimation(cameraPosition, cameraOrientation, fov, projection, view);
 
-        // 渲染到帧缓冲对象
+        // 渲染到 FBO
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         glViewport(0, 0, m_widthScreen, m_heightScreen);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -756,16 +740,13 @@ void PanoramaRenderer::exportAnimationEffectThread(const std::string &outputFile
         videoWriter.write(frame);
     }
 
-    // 解绑帧缓冲对象
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
     // 删除帧缓冲对象和纹理
     glDeleteFramebuffers(1, &fbo);
     glDeleteTextures(1, &texture);
     glDeleteRenderbuffers(1, &rbo);
 
     // 销毁 OpenGL 上下文
-    glfwMakeContextCurrent(nullptr);
+    glfwMakeContextCurrent(nullptr);  // 销毁 OpenGL 上下文
 
     // 导出结束，重置标志
     m_exporting.store(false);
@@ -806,8 +787,6 @@ void PanoramaRenderer::exportAnimationEffect(const std::string &outputFile, int 
 
         // OpenGL 坐标系和 OpenCV 坐标系不同，需要翻转
         cv::flip(renderFrame, renderFrame, 0);
-
-        // 将 BGR 顺序转换为 RGB 顺序
         cv::cvtColor(renderFrame, renderFrame, cv::COLOR_BGR2RGB);
 
         // 调整大小到指定的输出参数宽和高
