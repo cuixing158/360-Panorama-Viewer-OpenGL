@@ -176,6 +176,15 @@ void PanoramaRenderer::processInput() {
         m_fov = 85.0f;
     }
 
+    // 加入键盘快捷键，保存导出的全景照片动画师效果,但不影响主线程运行
+    if (glfwGetKey(m_window, GLFW_KEY_P) == GLFW_PRESS) {
+        double t1 = cv::getTickCount();
+        exportAnimationEffect("panoAnimator.mp4", 1920, 1080, 30);
+        printf("it take time:%f seconds.\n", (cv::getTickCount() - t1) / cv::getTickFrequency());
+        // startExportAnimationEffect("panoAnimator.mp4", 1920, 1080, 30);
+    }
+
+    // 处理全景照片动画师功能
     if (m_panoMode == SwitchMode::PANORAMAIMAGE)  // 照片动画师功能
     {
         if (glfwGetKey(m_window, GLFW_KEY_F1) == GLFW_PRESS) {
@@ -565,7 +574,7 @@ void PanoramaRenderer::updateVideoFrame() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 PanoramaRenderer::PanoramaRenderer(std::string filepath)
-    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(640), m_heightScreen(480), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)), m_lastFrameTime((float)cv::getTickCount()) {
+    : m_window(nullptr), m_vao(0), m_vboVertices(0), m_vboIndices(0), m_vboTexCoords(0), m_shaderProgram(0), m_texture(0), m_viewOrientation(ViewMode::PERSPECTIVE), m_panoAnimator(PanoAnimator::NONE), m_panoMode(SwitchMode::PANORAMAIMAGE), m_widthScreen(1920), m_heightScreen(1080), m_pitch(0.0f), m_yaw(0.0f), m_prevPitch(0.0f), m_fov(60.0f), m_isDragging(false), m_lastX(0), m_lastY(0), m_sphereData(new SphereData(1.0f, 50, 50)), m_lastFrameTime((float)cv::getTickCount()), m_exporting(false) {
     if (!glfwInit()) {
         std::cerr << "GLFW init failed!" << std::endl;
         exit(-1);
@@ -638,6 +647,176 @@ PanoramaRenderer::PanoramaRenderer(std::string filepath)
         auto *renderer = static_cast<PanoramaRenderer *>(glfwGetWindowUserPointer(m_window));
         renderer->scroll_callback(xoffset, yoffset);
     });
+}
+
+// 启动后台导出线程
+void PanoramaRenderer::startExportAnimationEffect(const std::string &outputFile, int width, int height, int fps) {
+    if (m_exporting.load()) {
+        std::cerr << "Export already in progress!" << std::endl;
+        return;
+    }
+    m_exporting.store(true);  // 设置导出标志
+
+    // 启动后台线程进行导出
+    m_exportThread = std::thread(&PanoramaRenderer::exportAnimationEffect, this, outputFile, width, height, fps);
+    m_exportThread.detach();  // 分离线程，避免阻塞主线程
+}
+
+// 后台导出视频的实现
+void PanoramaRenderer::exportAnimationEffectThread(const std::string &outputFile, int width, int height, int fps) {
+    // 确保在此线程中使用主线程的 OpenGL 上下文
+    glfwMakeContextCurrent(m_window);  // 确保当前线程使用主上下文
+
+    // 创建一个帧缓冲对象 (FBO)
+    GLuint fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    // 创建一个纹理来存储渲染结果
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_widthScreen, m_heightScreen, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+
+    // 创建并附加一个深度缓冲区
+    GLuint rbo;
+    glGenRenderbuffers(1, &rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_widthScreen, m_heightScreen);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    GLenum framebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (framebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Framebuffer not complete! Error code: " << framebufferStatus << std::endl;
+        switch (framebufferStatus) {
+            case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+                std::cerr << "Incomplete attachment!" << std::endl;
+                break;
+            case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+                std::cerr << "Missing attachment!" << std::endl;
+                break;
+            case GL_FRAMEBUFFER_UNSUPPORTED:
+                std::cerr << "Framebuffer unsupported!" << std::endl;
+                break;
+            default:
+                std::cerr << "Unknown error!" << std::endl;  // 待解决
+                break;
+        }
+        return;
+    }
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Framebuffer not complete!" << std::endl;
+        return;
+    }
+
+    // 创建并打开视频编码器
+    cv::VideoWriter videoWriter(outputFile, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, cv::Size(width, height));
+    if (!videoWriter.isOpened()) {
+        std::cerr << "Cannot open video file for writing: " << outputFile << std::endl;
+        return;
+    }
+
+    // 获取当前动画模式的结构体，根据时刻0到总时间T，快速生成渲染帧，然后写入视频文件
+    float totalTime = m_animationEffect.getTotalDuration();
+    for (float t = 0.0f; t < totalTime; t += 1.0f / fps) {
+        glm::vec3 cameraPosition;
+        glm::quat cameraOrientation;
+        float fov;
+        m_animationEffect.getInterpolatedParams(t, cameraPosition, cameraOrientation, fov);
+
+        // 获取视图矩阵
+        glm::mat4 projection, view;
+        getViewMatrixForAnimation(cameraPosition, cameraOrientation, fov, projection, view);
+
+        // 渲染到帧缓冲对象
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glViewport(0, 0, m_widthScreen, m_heightScreen);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        renderPanorama(m_sphereData, projection, view);
+
+        // 读取渲染结果
+        cv::Mat renderFrame(m_heightScreen, m_widthScreen, CV_8UC3);
+        glReadPixels(0, 0, m_widthScreen, m_heightScreen, GL_RGB, GL_UNSIGNED_BYTE, renderFrame.data);
+
+        // OpenGL 坐标系和 OpenCV 坐标系不同，需要翻转
+        cv::flip(renderFrame, renderFrame, 0);
+
+        // 将 BGR 顺序转换为 RGB 顺序
+        cv::cvtColor(renderFrame, renderFrame, cv::COLOR_BGR2RGB);
+
+        // 调整大小到指定的输出参数宽和高
+        cv::Mat frame;
+        cv::resize(renderFrame, frame, cv::Size(width, height), 0, 0, cv::INTER_LINEAR);
+
+        // 写入视频文件
+        videoWriter.write(frame);
+    }
+
+    // 解绑帧缓冲对象
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // 删除帧缓冲对象和纹理
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteTextures(1, &texture);
+    glDeleteRenderbuffers(1, &rbo);
+
+    // 销毁 OpenGL 上下文
+    glfwMakeContextCurrent(nullptr);
+
+    // 导出结束，重置标志
+    m_exporting.store(false);
+}
+
+void PanoramaRenderer::exportAnimationEffect(const std::string &outputFile, int width, int height, int fps) {
+    if (m_panoMode != SwitchMode::PANORAMAIMAGE || m_panoAnimator == PanoramaRenderer::PanoAnimator::NONE) {
+        std::cerr << "No animation effect to export!" << std::endl;
+        return;
+    }
+
+    // 创建一个视频编码器
+    cv::VideoWriter videoWriter(outputFile, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, cv::Size(width, height));
+    if (!videoWriter.isOpened()) {
+        std::cerr << "Cannot open video file for writing: " << outputFile << std::endl;
+        return;
+    }
+
+    // 获取当前动画模式的结构体，根据时刻0到总时间T，快速生成渲染帧，然后写入视频文件
+    float totalTime = m_animationEffect.getTotalDuration();
+    for (float t = 0.0f; t < totalTime; t += 1.0f / fps) {
+        glm::vec3 cameraPosition;
+        glm::quat cameraOrientation;
+        float fov;
+        m_animationEffect.getInterpolatedParams(t, cameraPosition, cameraOrientation, fov);
+
+        // 获取视图矩阵
+        glm::mat4 projection, view;
+        getViewMatrixForAnimation(cameraPosition, cameraOrientation, fov, projection, view);
+
+        // 渲染
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        renderPanorama(m_sphereData, projection, view);
+
+        // 读取渲染结果
+        cv::Mat renderFrame(m_heightScreen, m_widthScreen, CV_8UC3);
+        glReadPixels(0, 0, m_widthScreen, m_heightScreen, GL_RGB, GL_UNSIGNED_BYTE, renderFrame.data);
+
+        // OpenGL 坐标系和 OpenCV 坐标系不同，需要翻转
+        cv::flip(renderFrame, renderFrame, 0);
+
+        // 将 BGR 顺序转换为 RGB 顺序
+        cv::cvtColor(renderFrame, renderFrame, cv::COLOR_BGR2RGB);
+
+        // 调整大小到指定的输出参数宽和高
+        cv::Mat frame;
+        cv::resize(renderFrame, frame, cv::Size(width, height), 0, 0, cv::INTER_LINEAR);
+
+        // 写入视频文件
+        videoWriter.write(frame);
+    }
 }
 
 PanoramaRenderer::~PanoramaRenderer() {

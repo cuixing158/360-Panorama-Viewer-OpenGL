@@ -14,6 +14,8 @@
 #define PANORAMARENDERER_H
 
 #include <iostream>
+#include <thread>
+#include <atomic>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
@@ -94,6 +96,12 @@ class PanoramaRenderer {
     PanoramaRenderer(std::string filepath);
     // 渲染循环
     void renderLoop();
+
+    // 导出“照片动画师”为视频
+    void exportAnimationEffectThread(const std::string &outputFile, int width, int height, int fps);  // 导出动画视频函数声明
+    void exportAnimationEffect(const std::string &outputFile, int width, int height, int fps);        // 导出动画视频函数声明
+    void startExportAnimationEffect(const std::string &outputFile, int width, int height, int fps);   // 启动后台线程导出
+
     // 析构函数
     ~PanoramaRenderer();
 
@@ -126,7 +134,7 @@ class PanoramaRenderer {
     // 滚轮回调函数（用于调整 FOV）
     void scroll_callback(double xoffset, double yoffset);
 
-    GLFWwindow *m_window;
+    GLFWwindow *m_window;  // 主线程中的窗口
     // 全景图片和视频渲染
     GLuint m_vao, m_vboVertices, m_vboIndices, m_vboTexCoords;  // 顶点数组对象和缓冲对象
     GLuint m_shaderProgram, m_texture;                          // 着色器程序和纹理对象
@@ -150,6 +158,10 @@ class PanoramaRenderer {
     AnimationEffect m_animationEffect;  // 三阶段的动画效果
     float m_animationTime = 0.0f;       // 当前动画的计时器
     float m_lastFrameTime;              // 上一帧的时间戳
+
+    // 导出视频的后台线程
+    std::atomic<bool> m_exporting;  // 用于检测是否正在导出
+    std::thread m_exportThread;     // 后台导出线程
 };
 
 #endif  // PANORAMARENDERER_H
