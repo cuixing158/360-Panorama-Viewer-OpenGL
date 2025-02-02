@@ -1,5 +1,7 @@
 # 360 Panorama Viewer
 
+[![Sponsor](https://img.shields.io/badge/-Sponsor-red?style=for-the-badge&logo=GitHub-Sponsors&logoColor=white)](https://raw.githubusercontent.com/cuixing158/OpticalFlow-Visualization/refs/heads/main/README_media/sponsors.jpg)
+
 ## :eyes: Overview
 桌面360 VR全景查看器，使用C++ OpenGL 渲染全景图像或者视频，它们应当具有[`equirectangular projection`](https://en.wikipedia.org/wiki/Equirectangular_projection)类型的图像或者视频文件，支持鼠标拖曳、滚轮缩放、键盘控制等功能。
 
